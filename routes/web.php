@@ -9,7 +9,7 @@ function route(string $method, string $path): string {
         return (string)ob_get_clean();
     }
 
-  if ($method === 'GET' && $path === '/leaderboard') {
+if ($method === 'GET' && $path === '/leaderboard') {
     $title = 'Leaderboard';
 
     $pdo = db();
@@ -25,6 +25,7 @@ function route(string $method, string $path): string {
     include __DIR__ . '/../views/leaderboard.php';
     return (string)ob_get_clean();
 }
+
 
 
     http_response_code(404);
