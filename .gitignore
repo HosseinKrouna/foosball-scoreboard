@@ -1,0 +1,39 @@
+# --- Composer dependencies ---
+/vendor/
+
+# --- Environment files ---
+.env
+
+# --- OS / System Files ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+
+# --- IDE / Editor Configs ---
+# PhpStorm / JetBrains
+.idea/
+*.iml
+
+# Visual Studio Code
+.vscode/
+
+# NetBeans
+/nbproject/
+
+# Eclipse
+.project
+.buildpath
+.settings/
+
+# --- Logs / Cache ---
+*.log
+*.cache
+*.tmp
+
+# --- PHPUnit / Testing ---
+.phpunit.result.cache
+coverage/
+
+# --- Other ---
+/node_modules/   
