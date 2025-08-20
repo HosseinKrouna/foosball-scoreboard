@@ -1,6 +1,6 @@
 <?php ob_start(); ?>
 <h1>Leaderboard</h1>
-<p class="muted">Platzhalterdaten – DB-Anbindung folgt.</p>
+<p class="muted">Echte Daten aus der Datenbank!!</p>
 <div class="card">
     <table class="table">
         <thead>
@@ -13,13 +13,13 @@
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($teams as $t): ?>
+            <?php foreach ($teams as $i => $t): ?>
             <tr>
-                <td><?= (int)$t['rank'] ?></td>
+                <td><?= $i + 1 ?></td>
                 <td><?= htmlspecialchars($t['name']) ?></td>
                 <td><?= (int)$t['rating'] ?></td>
                 <td><?= (int)$t['wins'] ?></td>
-                <td><?= (int)$t['games'] ?></td>
+                <td><?= (int)$t['games_played'] ?></td>
             </tr>
             <?php endforeach; ?>
         </tbody>
