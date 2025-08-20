@@ -1,9 +1,29 @@
 body { font-family: system-ui, Arial, sans-serif; margin: 24px; background: #0b0f14; color: #e6f0ff; }
+
 .container { max-width: 960px; margin: 0 auto; }
+
 .muted { color: #9db2d1; }
+
 .card { background: rgba(255,255,255,0.06); border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+
 .table { width: 100%; border-collapse: collapse; }
+
 .table th, .table td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.10); text-align: left; }
+
 .table th { color: #9db2d1; font-weight: 600; }
+
 a { color: #33e1ed; text-decoration: none; }
+
 a:hover { text-decoration: underline; }
+
+.row { display:flex; gap:12px; align-items:center; margin:10px 0; }
+
+.row label { width:120px; color:#9db2d1; }
+
+.row select, .row input { flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:#0f141b; color:#e6f0ff; }
+
+.actions { display:flex; gap:12px; margin-top:12px; }
+
+.btn { display:inline-block; padding:8px 12px; border-radius:10px; background:rgba(255,255,255,0.06); color:#e6f0ff; text-decoration:none; border:1px solid rgba(255,255,255,0.12); }
+
+.btn.primary { background:#1b2a38; border-color:#2a3b4e; }

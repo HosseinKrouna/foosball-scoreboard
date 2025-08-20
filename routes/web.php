@@ -9,24 +9,33 @@ function route(string $method, string $path): string {
         return (string)ob_get_clean();
     }
 
-if ($method === 'GET' && $path === '/leaderboard') {
-    $title = 'Leaderboard';
+    if ($method === 'GET' && $path === '/leaderboard') {
+        $title = 'Leaderboard';
 
-    $pdo = db();
-    $stmt = $pdo->query("
-        SELECT id, name, rating, wins, games_played
-        FROM teams
-        ORDER BY rating DESC, wins DESC, games_played DESC
-        LIMIT 50
-    ");
-    $teams = $stmt->fetchAll();
+        $pdo = db();
+        $stmt = $pdo->query("
+            SELECT id, name, rating, wins, games_played
+            FROM teams
+            ORDER BY rating DESC, wins DESC, games_played DESC
+            LIMIT 50
+        ");
+        $teams = $stmt->fetchAll();
 
-    ob_start();
-    include __DIR__ . '/../views/leaderboard.php';
-    return (string)ob_get_clean();
-}
+        ob_start();
+        include __DIR__ . '/../views/leaderboard.php';
+        return (string)ob_get_clean();
+    }
 
+    if ($method === 'GET' && $path === '/match/new') {
+        $title = 'New Match';
 
+        $pdo = db();
+        $teams = $pdo->query("SELECT id, name FROM teams ORDER BY name ASC")->fetchAll();
+
+        ob_start();
+        include __DIR__ . '/../views/match_new.php';
+        return (string)ob_get_clean();
+    }
 
     http_response_code(404);
     return 'Not found';
