@@ -1,13 +1,10 @@
 <?php
 declare(strict_types=1);
-require __DIR__ . '/../vendor/autoload.php';
 
-?>
-<!doctype html>
-<meta charset="utf-8">
-<title>Foosball Scoreboard</title>
+require __DIR__ . '/../src/db.php';
+require __DIR__ . '/../routes/web.php';
 
-<body style="font-family:system-ui;margin:24px">
-    <h1>Foosball Scoreboard</h1>
-    <p>App läuft!!</p>
-</body>
+$path   = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/';
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+echo route($method, $path);
