@@ -91,15 +91,17 @@ function route(string $method, string $path): string {
         return (string)ob_get_clean();
     }
 
-    // Speichern + Stats + Elo in einer Transaktion
-    $pdo->beginTransaction();
-    try {
+    // Speichern + Stats-Update in einer Transaktion
+        $pdo->beginTransaction();
+
+        try {
         // Match speichern
         $stmt = $pdo->prepare("
-            INSERT INTO matches (mode, team_a_id, team_b_id, score_a, score_b, notes)
-            VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO matches (mode, team_a_id, team_b_id, score_a, score_b, notes)
+        VALUES (?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([$mode, $teamA, $teamB, $scoreA, $scoreB, $notes !== '' ? $notes : null]);
+
 
         // Spiele hochzählen
         $stmt = $pdo->prepare("UPDATE teams SET games_played = games_played + 1 WHERE id IN (?, ?)");
@@ -130,6 +132,7 @@ function route(string $method, string $path): string {
         $stmt->execute([$rbNew, $teamB]);
 
         $pdo->commit();
+
         header('Location: /leaderboard');
         exit;
     } catch (Throwable $e) {
