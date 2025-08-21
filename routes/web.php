@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../src/elo.php';
+
 
 function route(string $method, string $path): string {
     // Home
@@ -45,50 +47,49 @@ function route(string $method, string $path): string {
     }
 
     // Create Match (POST)
-    if ($method === 'POST' && $path === '/match') {
-        $pdo = db();
+   if ($method === 'POST' && $path === '/match') {
+    $pdo = db();
 
-        // Eingaben einsammeln
-        $mode   = $_POST['mode']      ?? '';
-        $teamA  = isset($_POST['team_a_id']) ? (int)$_POST['team_a_id'] : 0;
-        $teamB  = isset($_POST['team_b_id']) ? (int)$_POST['team_b_id'] : 0;
-        $scoreA = isset($_POST['score_a'])   ? (int)$_POST['score_a']   : -1;
-        $scoreB = isset($_POST['score_b'])   ? (int)$_POST['score_b']   : -1;
-        $notes  = trim((string)($_POST['notes'] ?? ''));
+    // Eingaben
+    $mode   = $_POST['mode']      ?? '';
+    $teamA  = isset($_POST['team_a_id']) ? (int)$_POST['team_a_id'] : 0;
+    $teamB  = isset($_POST['team_b_id']) ? (int)$_POST['team_b_id'] : 0;
+    $scoreA = isset($_POST['score_a'])   ? (int)$_POST['score_a']   : -1;
+    $scoreB = isset($_POST['score_b'])   ? (int)$_POST['score_b']   : -1;
+    $notes  = trim((string)($_POST['notes'] ?? ''));
 
-        $errors = [];
-        $old = [
-            'mode'      => $mode,
-            'team_a_id' => $teamA,
-            'team_b_id' => $teamB,
-            'score_a'   => $scoreA >= 0 ? $scoreA : '',
-            'score_b'   => $scoreB >= 0 ? $scoreB : '',
-            'notes'     => $notes,
-        ];
+    $errors = [];
+    $old = [
+        'mode'      => $mode,
+        'team_a_id' => $teamA,
+        'team_b_id' => $teamB,
+        'score_a'   => $scoreA >= 0 ? $scoreA : '',
+        'score_b'   => $scoreB >= 0 ? $scoreB : '',
+        'notes'     => $notes,
+    ];
 
-        // Validierung
-        if (!in_array($mode, ['1v1','2v2'], true)) $errors[] = 'Invalid mode.';
-        if ($teamA <= 0 || $teamB <= 0)            $errors[] = 'Both teams are required.';
-        if ($teamA === $teamB)                     $errors[] = 'Team A and Team B must be different.';
-        if ($scoreA < 0)                           $errors[] = 'Score A must be a non-negative integer.';
-        if ($scoreB < 0)                           $errors[] = 'Score B must be a non-negative integer.';
+    // Validierung
+    if (!in_array($mode, ['1v1','2v2'], true)) $errors[] = 'Invalid mode.';
+    if ($teamA <= 0 || $teamB <= 0)            $errors[] = 'Both teams are required.';
+    if ($teamA === $teamB)                     $errors[] = 'Team A and Team B must be different.';
+    if ($scoreA < 0)                           $errors[] = 'Score A must be a non-negative integer.';
+    if ($scoreB < 0)                           $errors[] = 'Score B must be a non-negative integer.';
 
-        // Teams existieren?
-        if (empty($errors)) {
-            $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM teams WHERE id IN (?, ?)");
-            $stmt->execute([$teamA, $teamB]);
-            $row = $stmt->fetch();
-            if ((int)$row['c'] !== 2) $errors[] = 'Unknown team selected.';
-        }
+    // Teams existieren?
+    if (empty($errors)) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM teams WHERE id IN (?, ?)");
+        $stmt->execute([$teamA, $teamB]);
+        $row = $stmt->fetch();
+        if ((int)$row['c'] !== 2) $errors[] = 'Unknown team selected.';
+    }
 
-        // Fehler → Formular erneut anzeigen
-        if (!empty($errors)) {
-            $title = 'New Match';
-            $teams = $pdo->query("SELECT id, name FROM teams ORDER BY name ASC")->fetchAll();
-            ob_start();
-            include __DIR__ . '/../views/match_new.php'; // nutzt $errors und $old
-            return (string)ob_get_clean();
-        }
+    if (!empty($errors)) {
+        $title = 'New Match';
+        $teams = $pdo->query("SELECT id, name FROM teams ORDER BY name ASC")->fetchAll();
+        ob_start();
+        include __DIR__ . '/../views/match_new.php';
+        return (string)ob_get_clean();
+    }
 
     // Speichern + Stats-Update in einer Transaktion
         $pdo->beginTransaction();
@@ -101,18 +102,34 @@ function route(string $method, string $path): string {
         ");
         $stmt->execute([$mode, $teamA, $teamB, $scoreA, $scoreB, $notes !== '' ? $notes : null]);
 
-        // Spiele für beide Teams hochzählen
+
+        // Spiele hochzählen
         $stmt = $pdo->prepare("UPDATE teams SET games_played = games_played + 1 WHERE id IN (?, ?)");
         $stmt->execute([$teamA, $teamB]);
 
-        // Siege für Gewinner hochzählen (bei Unentschieden keiner)
+        // Siege hochzählen (kein Sieger bei Draw)
         if ($scoreA > $scoreB) {
-        $stmt = $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id = ?");
-        $stmt->execute([$teamA]);
+            $stmt = $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id = ?");
+            $stmt->execute([$teamA]);
         } elseif ($scoreB > $scoreA) {
-        $stmt = $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id = ?");
-        $stmt->execute([$teamB]);
+            $stmt = $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id = ?");
+            $stmt->execute([$teamB]);
         }
+
+        // Aktuelle Ratings sperren & lesen
+        $stmt = $pdo->prepare("SELECT id, rating FROM teams WHERE id IN (?, ?) FOR UPDATE");
+        $stmt->execute([$teamA, $teamB]);
+        $rows = $stmt->fetchAll();
+        $ratings = [];
+        foreach ($rows as $r) $ratings[(int)$r['id']] = (int)$r['rating'];
+        $ra = $ratings[$teamA] ?? 1500;
+        $rb = $ratings[$teamB] ?? 1500;
+
+        // Elo berechnen & updaten
+        [$raNew, $rbNew] = elo_update($ra, $rb, $scoreA, $scoreB);
+        $stmt = $pdo->prepare("UPDATE teams SET rating = ? WHERE id = ?");
+        $stmt->execute([$raNew, $teamA]);
+        $stmt->execute([$rbNew, $teamB]);
 
         $pdo->commit();
 
@@ -127,12 +144,7 @@ function route(string $method, string $path): string {
         include __DIR__ . '/../views/match_new.php';
         return (string)ob_get_clean();
     }
-        $stmt->execute([$mode, $teamA, $teamB, $scoreA, $scoreB, $notes !== '' ? $notes : null]);
-
-        // Weiter zum Leaderboard
-        header('Location: /leaderboard');
-        exit;
-    }
+}
 
     // Fallback 404
     http_response_code(404);
