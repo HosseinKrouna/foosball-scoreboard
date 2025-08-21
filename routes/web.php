@@ -90,11 +90,43 @@ function route(string $method, string $path): string {
             return (string)ob_get_clean();
         }
 
-        // Speichern
+    // Speichern + Stats-Update in einer Transaktion
+        $pdo->beginTransaction();
+
+        try {
+        // Match speichern
         $stmt = $pdo->prepare("
-            INSERT INTO matches (mode, team_a_id, team_b_id, score_a, score_b, notes)
-            VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO matches (mode, team_a_id, team_b_id, score_a, score_b, notes)
+        VALUES (?, ?, ?, ?, ?, ?)
         ");
+        $stmt->execute([$mode, $teamA, $teamB, $scoreA, $scoreB, $notes !== '' ? $notes : null]);
+
+        // Spiele für beide Teams hochzählen
+        $stmt = $pdo->prepare("UPDATE teams SET games_played = games_played + 1 WHERE id IN (?, ?)");
+        $stmt->execute([$teamA, $teamB]);
+
+        // Siege für Gewinner hochzählen (bei Unentschieden keiner)
+        if ($scoreA > $scoreB) {
+        $stmt = $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id = ?");
+        $stmt->execute([$teamA]);
+        } elseif ($scoreB > $scoreA) {
+        $stmt = $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id = ?");
+        $stmt->execute([$teamB]);
+        }
+
+        $pdo->commit();
+
+        header('Location: /leaderboard');
+        exit;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        $errors[] = 'Saving failed: ' . $e->getMessage();
+        $title = 'New Match';
+        $teams = $pdo->query("SELECT id, name FROM teams ORDER BY name ASC")->fetchAll();
+        ob_start();
+        include __DIR__ . '/../views/match_new.php';
+        return (string)ob_get_clean();
+    }
         $stmt->execute([$mode, $teamA, $teamB, $scoreA, $scoreB, $notes !== '' ? $notes : null]);
 
         // Weiter zum Leaderboard
