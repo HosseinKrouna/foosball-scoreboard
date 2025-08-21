@@ -1,29 +1,140 @@
-body { font-family: system-ui, Arial, sans-serif; margin: 24px; background: #0b0f14; color: #e6f0ff; }
+/* Design-Variablen */
+:root{
+  --bg:#0b0f14;
+  --bg-2:#0d1119;
+  --fg:#e6f0ff;
+  --muted:#9db2d1;
+  --acc1:#33e1ed;  
+  --acc2:#ff5da2;   }
 
-.container { max-width: 960px; margin: 0 auto; }
+/* Base */
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font-family:system-ui, Segoe UI, Inter, Roboto, Arial, sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
 
-.muted { color: #9db2d1; }
+/* ---------- Animated Background ---------- */
+.fx-bg{
+  position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(60rem 60rem at 10% 20%, rgba(51,225,237,0.18) 0%, transparent 60%),
+    radial-gradient(40rem 40rem at 82% -8%, rgba(255,93,162,0.17) 0%, transparent 60%),
+    radial-gradient(48rem 48rem at 64% 92%, rgba(118,93,255,0.12) 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+  filter: saturate(110%);
+  animation: fxFloat 18s ease-in-out infinite alternate;
+}
+@keyframes fxFloat{
+  0%   { transform: translate3d(0,0,0) scale(1.00); }
+  100% { transform: translate3d(0,-10px,0) scale(1.03); }
+}
 
-.card { background: rgba(255,255,255,0.06); border-radius: 12px; padding: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+/* ---------- Typo & Links ---------- */
+h1,h2,h3{ letter-spacing:.2px; margin-bottom:.75rem }
+a{ color: var(--acc1); text-decoration: none; }
+a:hover{ color:#7feaf2; text-decoration: underline; }
+.muted{ color: var(--muted)!important }
 
-.table { width: 100%; border-collapse: collapse; }
+/* ---------- Cards (Glassmorphism) ---------- */
+.card{
+  background: rgba(255,255,255,0.06)!important;
+  border: 1px solid rgba(255,255,255,0.10)!important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+  border-radius: 16px;
+}
+.card .card-body{ padding: 1rem 1rem; }
 
-.table th, .table td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.10); text-align: left; }
+/* ---------- Tabellen ---------- */
+.table{ margin:0 }
+.table thead{ background: rgba(255,255,255,0.85); color:#0b0f14 }
+.table-hover tbody tr:hover{ background: rgba(255,255,255,0.06) }
 
-.table th { color: #9db2d1; font-weight: 600; }
+/* ---------- Buttons ---------- */
+.btn{ border-radius: 10px }
+.btn-primary{
+  background: linear-gradient(135deg, var(--acc1), #79f2ff);
+  border:0; color:#07141a;
+}
+.btn-primary:hover{
+  filter: brightness(1.05);
+}
+.btn-outline-info{
+  border-color: var(--acc1); color: var(--acc1);
+}
+.btn-outline-info:hover{
+  background: var(--acc1); color:#05181c; border-color: var(--acc1);
+}
 
-a { color: #33e1ed; text-decoration: none; }
+/* ---------- Formulare ---------- */
+.form-control, .form-select{
+  background:#0f141b; color:var(--fg);
+  border:1px solid rgba(255,255,255,0.15);
+}
+.form-control:focus, .form-select:focus{
+  background:#101722; color:var(--fg);
+  border-color: rgba(51,225,237,0.55);
+  box-shadow: 0 0 0 .25rem rgba(51,225,237,.18);
+}
+.form-label{ color: var(--muted) }
 
-a:hover { text-decoration: underline; }
+/* ---------- Scoreboard ---------- */
+.scoreboard{
+  display:grid; gap:1rem; grid-template-columns: 1fr auto 1fr; align-items:center;
+}
+.team-name{
+  font-size: clamp(1.1rem, 2.4vw, 2rem);
+  opacity:.95;
+}
+.score{
+  font-weight: 800;
+  font-size: clamp(3.2rem, 9vw, 8rem);
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(51,225,237,.25), 0 0 28px rgba(255,93,162,.14);
+  transition: transform 180ms ease, filter 180ms ease;
+}
 
-.row { display:flex; gap:12px; align-items:center; margin:10px 0; }
+.score,
+.team-name {
+  color: #e6f0ff !important; 
+}
 
-.row label { width:120px; color:#9db2d1; }
+.score.bump { transform: scale(1.06); filter: brightness(1.1); }
+.badge-mode{
+  background:linear-gradient(135deg, rgba(51,225,237,.9), rgba(255,93,162,.85));
+  color:#061117;
+}
 
-.row select, .row input { flex:1; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:#0f141b; color:#e6f0ff; }
+/* ---------- Kleinere Helfer ---------- */
+.shadow-soft{ box-shadow: 0 8px 24px rgba(0,0,0,.25) }
+.border-faint{ border:1px solid rgba(255,255,255,.08) }
 
-.actions { display:flex; gap:12px; margin-top:12px; }
+/* ---------- Barrierefreiheit: weniger Bewegung ---------- */
+@media (prefers-reduced-motion: reduce){
+  .fx-bg{ animation:none }
+  .score{ transition:none }
+}
 
-.btn { display:inline-block; padding:8px 12px; border-radius:10px; background:rgba(255,255,255,0.06); color:#e6f0ff; text-decoration:none; border:1px solid rgba(255,255,255,0.12); }
+/* Doppelpunkt zwischen den Scores, falls separat gestyled */
+.scoreboard .score[aria-hidden="true"] {
+  color: #e6f0ff !important;
+}
 
-.btn.primary { background:#1b2a38; border-color:#2a3b4e; }
+/* Buttons lesbarer im Dark-Theme */
+.btn-outline-secondary {
+  color: #e6f0ff !important;
+  border-color: rgba(230,240,255,0.6) !important;
+}
+.btn-outline-secondary:hover {
+  background: rgba(230,240,255,0.12) !important;
+}
+
+/* Falls irgendwo 'text-dark' reingeschlichen ist */
+.text-dark {
+  color: #e6f0ff !important;
+}
