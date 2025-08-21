@@ -5,8 +5,7 @@
   --fg:#e6f0ff;
   --muted:#9db2d1;
   --acc1:#33e1ed;  
-  --acc2:#ff5da2;  
-}
+  --acc2:#ff5da2;   }
 
 /* Base */
 html,body{height:100%}
@@ -18,7 +17,7 @@ body{
   -moz-osx-font-smoothing:grayscale;
 }
 
-/* ---------- Animated Background (reines CSS) ---------- */
+/* ---------- Animated Background ---------- */
 .fx-bg{
   position:fixed; inset:0; z-index:-1; pointer-events:none;
   background:
@@ -99,6 +98,12 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
   text-shadow: 0 0 14px rgba(51,225,237,.25), 0 0 28px rgba(255,93,162,.14);
   transition: transform 180ms ease, filter 180ms ease;
 }
+
+.score,
+.team-name {
+  color: #e6f0ff !important; 
+}
+
 .score.bump { transform: scale(1.06); filter: brightness(1.1); }
 .badge-mode{
   background:linear-gradient(135deg, rgba(51,225,237,.9), rgba(255,93,162,.85));
@@ -109,8 +114,27 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
 .shadow-soft{ box-shadow: 0 8px 24px rgba(0,0,0,.25) }
 .border-faint{ border:1px solid rgba(255,255,255,.08) }
 
-/* ---------- Barrierefreiheit ---------- */
+/* ---------- Barrierefreiheit: weniger Bewegung ---------- */
 @media (prefers-reduced-motion: reduce){
   .fx-bg{ animation:none }
   .score{ transition:none }
+}
+
+/* Doppelpunkt zwischen den Scores, falls separat gestyled */
+.scoreboard .score[aria-hidden="true"] {
+  color: #e6f0ff !important;
+}
+
+/* Buttons lesbarer im Dark-Theme */
+.btn-outline-secondary {
+  color: #e6f0ff !important;
+  border-color: rgba(230,240,255,0.6) !important;
+}
+.btn-outline-secondary:hover {
+  background: rgba(230,240,255,0.12) !important;
+}
+
+/* Falls irgendwo 'text-dark' reingeschlichen ist */
+.text-dark {
+  color: #e6f0ff !important;
 }

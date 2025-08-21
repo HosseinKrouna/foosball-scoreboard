@@ -1,12 +1,15 @@
 <?php ob_start(); ?>
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h1 class="h3 mb-0">New Match</h1>
-    <a class="btn btn-outline-info btn-sm" href="/leaderboard">← Leaderboard</a>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-info btn-sm" href="/leaderboard">Leaderboard</a>
+        <a class="btn btn-outline-secondary btn-sm" href="/matches">History</a>
+    </div>
 </div>
 
 <?php if (!empty($errors)): ?>
 <div class="alert alert-danger">
-    <strong>Could not save:</strong>
+    <strong>Could not create:</strong>
     <ul class="mb-0">
         <?php foreach ($errors as $e): ?>
         <li><?= htmlspecialchars($e) ?></li>
@@ -24,9 +27,7 @@
             <div class="mb-3">
                 <label for="mode" class="form-label">Mode</label>
                 <select id="mode" name="mode" class="form-select" required>
-                    <?php
-                $sel = $old['mode'] ?? '1v1';
-              ?>
+                    <?php $sel = $old['mode'] ?? '1v1'; ?>
                     <option value="1v1" <?= $sel==='1v1' ? 'selected' : '' ?>>1v1</option>
                     <option value="2v2" <?= $sel==='2v2' ? 'selected' : '' ?>>2v2</option>
                 </select>
@@ -62,19 +63,6 @@
                 </div>
             </div>
 
-            <div class="row g-3 mt-1">
-                <div class="col-md-6">
-                    <label for="score_a" class="form-label">Score A</label>
-                    <input id="score_a" name="score_a" type="number" min="0" step="1"
-                        value="<?= htmlspecialchars((string)($old['score_a'] ?? '0')) ?>" class="form-control" required>
-                </div>
-                <div class="col-md-6">
-                    <label for="score_b" class="form-label">Score B</label>
-                    <input id="score_b" name="score_b" type="number" min="0" step="1"
-                        value="<?= htmlspecialchars((string)($old['score_b'] ?? '0')) ?>" class="form-control" required>
-                </div>
-            </div>
-
             <div class="mt-3">
                 <label for="notes" class="form-label">Notes (optional)</label>
                 <input id="notes" name="notes" type="text" class="form-control"
@@ -83,7 +71,7 @@
 
             <div class="d-flex gap-2 mt-4">
                 <a class="btn btn-outline-secondary" href="/leaderboard">Cancel</a>
-                <button class="btn btn-primary" type="submit">Save match</button>
+                <button class="btn btn-primary" type="submit">Create & open TV view</button>
             </div>
         </form>
     </div>
