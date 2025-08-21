@@ -13,3 +13,6 @@ CREATE TABLE IF NOT EXISTS matches (
   CONSTRAINT fk_match_team_b FOREIGN KEY (team_b_id) REFERENCES teams(id),
   INDEX idx_played_at (played_at)
 ) ENGINE=InnoDB;
+
+DESCRIBE matches;
+SELECT COUNT(*) FROM matches;
