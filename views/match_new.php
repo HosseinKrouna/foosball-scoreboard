@@ -63,10 +63,25 @@
                 </div>
             </div>
 
-            <div class="mt-3">
-                <label for="notes" class="form-label">Notes (optional)</label>
-                <input id="notes" name="notes" type="text" class="form-control"
-                    value="<?= htmlspecialchars((string)($old['notes'] ?? '')) ?>" placeholder="e.g., friendly match">
+            <div class="row g-3 mt-1">
+                <div class="col-md-6">
+                    <label for="target_score" class="form-label">Target score (win at)</label>
+                    <select id="target_score" name="target_score" class="form-select" required>
+                        <?php
+                  $ts = (int)($old['target_score'] ?? 10);
+                  foreach ([5,7,10,11,15] as $opt) {
+                    $sel = $ts === $opt ? 'selected' : '';
+                    echo "<option value=\"$opt\" $sel>$opt</option>";
+                  }
+                ?>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="notes" class="form-label">Notes (optional)</label>
+                    <input id="notes" name="notes" type="text" class="form-control"
+                        value="<?= htmlspecialchars((string)($old['notes'] ?? '')) ?>"
+                        placeholder="e.g., friendly match">
+                </div>
             </div>
 
             <div class="d-flex gap-2 mt-4">
