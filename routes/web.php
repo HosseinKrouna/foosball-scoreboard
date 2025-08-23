@@ -293,5 +293,26 @@ function route(string $method, string $path): string {
         echo json_encode($res); exit;
     }
 
+    // --- Matches history (basic list) ---
+if ($method === 'GET' && $path === '/matches') {
+    $title = 'Matches';
+    $pdo = db();
+    $stmt = $pdo->query("
+        SELECT m.id, m.played_at, m.status, m.score_a, m.score_b,
+               a.name AS team_a, b.name AS team_b
+        FROM matches m
+        JOIN teams a ON a.id = m.team_a_id
+        JOIN teams b ON b.id = m.team_b_id
+        ORDER BY m.id DESC
+        LIMIT 20
+    ");
+    $matches = $stmt->fetchAll();
+
+    ob_start();
+    include __DIR__ . '/../views/matches_index.php';
+    return (string)ob_get_clean();
+}
+
+
     http_response_code(404); return 'Not found';
 }
