@@ -66,9 +66,10 @@
         </div>
 
         <?php if ($inProg): ?>
-        <div class="d-flex justify-content-center gap-4 mt-3">
+        <div class="d-flex justify-content-center gap-3 mt-3 flex-wrap">
             <button class="btn btn-outline-secondary btn-sm js-score" data-team="A" data-delta="1">+ A</button>
             <button class="btn btn-outline-secondary btn-sm js-score" data-team="B" data-delta="-1">− B</button>
+            <button id="btnUndo" class="btn btn-outline-warning btn-sm" type="button">Undo last</button>
         </div>
         <div class="d-flex justify-content-center mt-4">
             <button id="btnFinish" class="btn btn-primary btn-lg" type="button">Finish match</button>
@@ -82,25 +83,28 @@
 </div>
 
 <script>
-// ===== BASE/IDs =====
-const m = window.location.pathname.match(/^(.*)\/match\/\d+(?:\/.*)?$/);
-const BASE = m ? m[1] : '';
-
+// BASE robust aus URL ziehen
+(function() {
+    const m = window.location.pathname.match(/^(.*)\/match\/\d+(?:\/.*)?$/);
+    window.__BASE__ = m ? m[1] : '';
+})();
+const BASE = window.__BASE__;
 const MID = <?= (int)$match['id'] ?>;
 const API = (p) => BASE + p;
 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// ===== DOM =====
+// DOM
 const elA = document.getElementById('scoreA');
 const elB = document.getElementById('scoreB');
 const alertBox = document.getElementById('appAlert');
 const btnFinish = document.getElementById('btnFinish');
+const btnUndo = document.getElementById('btnUndo');
 const statusTextEl = document.getElementById('matchStatusText');
 
 let finishedApplied = <?= (($match['status'] ?? 'in_progress') !== 'finished') ? 'false' : 'true' ?>;
 let poller = null;
 
-// ===== Helpers =====
+// Helpers
 function showAlert(msg, type = 'warning') {
     alertBox.className = `alert alert-${type} py-2`;
     alertBox.textContent = msg;
@@ -123,38 +127,6 @@ async function api(path, opts) {
     return data;
 }
 
-function setFinishedUI() {
-    if (finishedApplied) return;
-    finishedApplied = true;
-
-    document.querySelectorAll('.js-score').forEach(b => b.remove());
-    if (btnFinish) btnFinish.remove();
-
-    if (!document.getElementById('finishedBadgeWrap')) {
-        const badge = document.createElement('div');
-        badge.id = 'finishedBadgeWrap';
-        badge.className = 'text-center mt-3';
-        badge.innerHTML = '<span class="badge bg-success">Finished</span>';
-        document.querySelector('.card .card-body').appendChild(badge);
-    }
-
-    if (statusTextEl) {
-        statusTextEl.innerHTML = statusTextEl.innerHTML.replace('In progress', 'Finished');
-        if (!/Finished/.test(statusTextEl.textContent)) {
-            statusTextEl.innerHTML = 'Finished · ' + statusTextEl.textContent.replace(/^.*·\\s*/, '');
-        }
-    }
-
-    if (poller) {
-        clearInterval(poller);
-        poller = null;
-    }
-}
-
-function applyStatus(status) {
-    if (status === 'finished') setFinishedUI();
-}
-
 function pulseFinishCTA(on) {
     if (!btnFinish) return;
     if (on) {
@@ -168,7 +140,37 @@ function pulseFinishCTA(on) {
     }
 }
 
-// ===== Sync =====
+function setFinishedUI() {
+    if (finishedApplied) return;
+    finishedApplied = true;
+    document.querySelectorAll('.js-score').forEach(b => b.remove());
+    if (btnUndo) btnUndo.remove();
+    if (btnFinish) btnFinish.remove();
+    if (!document.getElementById('finishedBadgeWrap')) {
+        const badge = document.createElement('div');
+        badge.id = 'finishedBadgeWrap';
+        badge.className = 'text-center mt-3';
+        badge.innerHTML = '<span class="badge bg-success">Finished</span>';
+        document.querySelector('.card .card-body').appendChild(badge);
+    }
+    if (statusTextEl) {
+        statusTextEl.innerHTML = statusTextEl.innerHTML.replace('In progress', 'Finished');
+        if (!/Finished/.test(statusTextEl.textContent)) {
+            statusTextEl.innerHTML = 'Finished · ' + statusTextEl.textContent.replace(/^.*·\s*/, '');
+        }
+    }
+    pulseFinishCTA(false);
+    if (poller) {
+        clearInterval(poller);
+        poller = null;
+    }
+}
+
+function applyStatus(status) {
+    if (status === 'finished') setFinishedUI();
+}
+
+// Sync
 async function syncScores(force = false) {
     try {
         const d = await api(`/api/match/${MID}`);
@@ -183,13 +185,12 @@ async function syncScores(force = false) {
             if (force || changedB) bump(elB);
         }
         applyStatus(d.status);
-        pulseFinishCTA(d.reached === true); // Hinweis: Ziel erreicht?
+        pulseFinishCTA(d.reached === true);
     } catch (e) {
         showAlert('Sync failed: ' + e.message);
     }
 }
 
-// Initial & Polling
 window.addEventListener('load', () => {
     syncScores(true);
     poller = setInterval(syncScores, 2000);
@@ -202,7 +203,7 @@ window.addEventListener('pageshow', (e) => {
     if (e.persisted) syncScores(true);
 });
 
-// ===== Score-Buttons =====
+// Score Buttons
 document.querySelectorAll('.js-score').forEach(btn => {
     btn.addEventListener('click', async () => {
         const team = btn.dataset.team;
@@ -223,11 +224,8 @@ document.querySelectorAll('.js-score').forEach(btn => {
             elA.textContent = d.score_a;
             elB.textContent = d.score_b;
             bump(team === 'A' ? elA : elB);
-
-            // Hinweis zeigen, aber NICHT auto-finishen
-            if (d.reached === true) {
-                showAlert('Target reached — press "Finish match" to finalize.', 'success');
-            }
+            if (d.reached === true) showAlert('Target reached — press "Finish match" to finalize.',
+                'success');
             pulseFinishCTA(d.reached === true);
             applyStatus(d.status);
         } catch (e) {
@@ -238,7 +236,30 @@ document.querySelectorAll('.js-score').forEach(btn => {
     });
 });
 
-// ===== Manuelles Finish =====
+// Undo
+if (btnUndo) {
+    btnUndo.addEventListener('click', async () => {
+        btnUndo.disabled = true;
+        try {
+            const d = await api(`/api/match/${MID}/undo`, {
+                method: 'POST'
+            });
+            elA.textContent = d.score_a;
+            elB.textContent = d.score_b;
+            bump(elA);
+            bump(elB);
+            pulseFinishCTA(d.reached === true);
+            showAlert('Last action undone.', 'info');
+        } catch (e) {
+            showAlert(e.message === 'no_events' ? 'Nothing to undo.' : 'Undo failed: ' + e.message,
+                'danger');
+        } finally {
+            btnUndo.disabled = false;
+        }
+    });
+}
+
+// Finish
 if (btnFinish) {
     btnFinish.addEventListener('click', async () => {
         if (!confirm('Finish this match and update stats/Elo?')) return;
@@ -250,7 +271,6 @@ if (btnFinish) {
             elA.textContent = d.score_a ?? elA.textContent;
             elB.textContent = d.score_b ?? elB.textContent;
             applyStatus('finished');
-            pulseFinishCTA(false);
             showAlert('Match finished.', 'success');
         } catch (e) {
             showAlert('Could not finish: ' + e.message, 'danger');

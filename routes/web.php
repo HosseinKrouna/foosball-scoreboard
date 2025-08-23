@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/elo.php';
 
 function finish_match(PDO $pdo, int $matchId): array {
-    // hol Match
+    // Match holen
     $stmt = $pdo->prepare("SELECT id, team_a_id, team_b_id, score_a, score_b, status FROM matches WHERE id=? LIMIT 1");
     $stmt->execute([$matchId]);
     $m = $stmt->fetch();
@@ -18,14 +18,14 @@ function finish_match(PDO $pdo, int $matchId): array {
 
     $pdo->beginTransaction();
     try {
-        // stats
+        // Stats
         $pdo->prepare("UPDATE teams SET games_played=games_played+1 WHERE id IN (?,?)")->execute([$teamA,$teamB]);
         if ($scoreA > $scoreB) {
             $pdo->prepare("UPDATE teams SET wins=wins+1 WHERE id=?")->execute([$teamA]);
         } elseif ($scoreB > $scoreA) {
             $pdo->prepare("UPDATE teams SET wins=wins+1 WHERE id=?")->execute([$teamB]);
         }
-        // elo
+        // Elo
         $stmt = $pdo->prepare("SELECT id, rating FROM teams WHERE id IN (?, ?) FOR UPDATE");
         $stmt->execute([$teamA,$teamB]);
         $rows = $stmt->fetchAll();
@@ -34,7 +34,7 @@ function finish_match(PDO $pdo, int $matchId): array {
         $pdo->prepare("UPDATE teams SET rating=? WHERE id=?")->execute([$raNew,$teamA]);
         $pdo->prepare("UPDATE teams SET rating=? WHERE id=?")->execute([$rbNew,$teamB]);
 
-        // finish
+        // Finish
         $pdo->prepare("UPDATE matches SET status='finished', finished_at=NOW() WHERE id=?")->execute([$matchId]);
 
         $pdo->commit();
@@ -146,10 +146,11 @@ function route(string $method, string $path): string {
         $stmt->execute([$matchId]); $row=$stmt->fetch();
         header('Content-Type: application/json; charset=utf-8');
         if(!$row){ http_response_code(404); echo json_encode(['ok'=>false,'error'=>'not_found']); exit; }
-        echo json_encode(['ok'=>true]+$row); exit;
+        $reached = ((int)$row['score_a'] >= (int)$row['target_score']) || ((int)$row['score_b'] >= (int)$row['target_score']);
+        echo json_encode(['ok'=>true] + $row + ['reached'=>$reached]); exit;
     }
 
-    // POST score +/-  (OHNE Auto-Finish; capped bis target_score; liefert reached-Flag)
+    // POST score +/-  (transaktional; capped; logged; kein Auto-Finish)
     if ($method==='POST' && preg_match('#^/api/match/(\d+)/score$#',$path,$m)){
         $matchId=(int)$m[1]; $pdo=db();
         header('Content-Type: application/json; charset=utf-8');
@@ -161,39 +162,125 @@ function route(string $method, string $path): string {
             http_response_code(400); echo json_encode(['ok'=>false,'error'=>'bad_input']); exit;
         }
 
-        $col = ($team==='A') ? 'score_a' : 'score_b';
+        try {
+            $pdo->beginTransaction();
 
-        // Score anpassen, capped: 0..target_score, nur wenn in_progress/NULL
-        $stmt=$pdo->prepare("UPDATE matches
-                             SET $col = LEAST(target_score, GREATEST(0, $col + ?))
-                             WHERE id=? AND (status='in_progress' OR status IS NULL)");
-        $stmt->execute([$delta,$matchId]);
-        if($stmt->rowCount()===0){
-            http_response_code(409); echo json_encode(['ok'=>false,'error'=>'not_in_progress']); exit;
+            // Sperren & lesen
+            $stmt=$pdo->prepare("SELECT score_a,score_b,target_score,status FROM matches WHERE id=? FOR UPDATE");
+            $stmt->execute([$matchId]); $row=$stmt->fetch();
+            if(!$row){ $pdo->rollBack(); http_response_code(404); echo json_encode(['ok'=>false,'error'=>'not_found']); exit; }
+            if (($row['status'] ?? '') === 'finished') {
+                $pdo->rollBack(); http_response_code(409); echo json_encode(['ok'=>false,'error'=>'not_in_progress']); exit;
+            }
+
+            $target = (int)$row['target_score'];
+            $curA   = (int)$row['score_a'];
+            $curB   = (int)$row['score_b'];
+
+            if ($team === 'A') {
+                $newA = max(0, min($target, $curA + $delta));
+                $applied = $newA - $curA;
+                if ($applied !== 0) {
+                    $pdo->prepare("UPDATE matches SET score_a=? WHERE id=?")->execute([$newA,$matchId]);
+                    $pdo->prepare("INSERT INTO match_events (match_id,team,delta,applied) VALUES (?,?,?,?)")
+                        ->execute([$matchId,'A',$delta,$applied]);
+                }
+                $scoreA = $newA; $scoreB = $curB;
+            } else { // team B
+                $newB = max(0, min($target, $curB + $delta));
+                $applied = $newB - $curB;
+                if ($applied !== 0) {
+                    $pdo->prepare("UPDATE matches SET score_b=? WHERE id=?")->execute([$newB,$matchId]);
+                    $pdo->prepare("INSERT INTO match_events (match_id,team,delta,applied) VALUES (?,?,?,?)")
+                        ->execute([$matchId,'B',$delta,$applied]);
+                }
+                $scoreA = $curA; $scoreB = $newB;
+            }
+
+            $pdo->commit();
+
+            $reached = ($scoreA >= $target) || ($scoreB >= $target);
+            $leader = $scoreA > $scoreB ? 'A' : ($scoreB > $scoreA ? 'B' : 'tie');
+
+            echo json_encode([
+                'ok'=>true,
+                'match_id'=>$matchId,
+                'score_a'=>$scoreA,
+                'score_b'=>$scoreB,
+                'target_score'=>$target,
+                'status'=>$row['status'],
+                'reached'=>$reached,
+                'leader'=>$leader,
+            ]);
+            exit;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['ok'=>false,'error'=>'score_update_failed','message'=>$e->getMessage()]);
+            exit;
         }
+    }
 
-        // Neuen Stand + target holen
-        $stmt=$pdo->prepare("SELECT score_a,score_b,target_score,status FROM matches WHERE id=? LIMIT 1");
-        $stmt->execute([$matchId]); $row=$stmt->fetch();
+    // POST undo (letzten Event rückgängig machen)
+    if ($method==='POST' && preg_match('#^/api/match/(\d+)/undo$#',$path,$m)){
+        $matchId=(int)$m[1]; $pdo=db();
+        header('Content-Type: application/json; charset=utf-8');
 
-        // Reached-Flag berechnen (ohne zu finishen)
-        $reached = ((int)$row['score_a'] >= (int)$row['target_score']) || ((int)$row['score_b'] >= (int)$row['target_score']);
-        $leader = null;
-        if ((int)$row['score_a'] > (int)$row['score_b']) $leader = 'A';
-        elseif ((int)$row['score_b'] > (int)$row['score_a']) $leader = 'B';
-        else $leader = 'tie';
+        try {
+            $pdo->beginTransaction();
 
-        echo json_encode([
-            'ok'=>true,
-            'match_id'=>$matchId,
-            'score_a'=>(int)$row['score_a'],
-            'score_b'=>(int)$row['score_b'],
-            'target_score'=>(int)$row['target_score'],
-            'status'=>$row['status'],
-            'reached'=>$reached,
-            'leader'=>$leader,
-        ]);
-        exit;
+            // Match sperren & prüfen
+            $stmt=$pdo->prepare("SELECT score_a,score_b,target_score,status FROM matches WHERE id=? FOR UPDATE");
+            $stmt->execute([$matchId]); $row=$stmt->fetch();
+            if(!$row){ $pdo->rollBack(); http_response_code(404); echo json_encode(['ok'=>false,'error'=>'not_found']); exit; }
+            if (($row['status'] ?? '') === 'finished') {
+                $pdo->rollBack(); http_response_code(409); echo json_encode(['ok'=>false,'error'=>'not_in_progress']); exit;
+            }
+
+            // Letztes Event
+            $evt = $pdo->prepare("SELECT id,team,applied FROM match_events WHERE match_id=? ORDER BY id DESC LIMIT 1");
+            $evt->execute([$matchId]); $e = $evt->fetch();
+            if (!$e) { $pdo->rollBack(); http_response_code(404); echo json_encode(['ok'=>false,'error'=>'no_events']); exit; }
+
+            $applied = (int)$e['applied']; // +1 / -1
+            $team    = $e['team'] === 'A' ? 'A' : 'B';
+
+            if ($applied !== 0) {
+                if ($team === 'A') {
+                    $pdo->prepare("UPDATE matches SET score_a = GREATEST(0, LEAST(target_score, score_a - ?)) WHERE id=?")
+                        ->execute([$applied, $matchId]);
+                } else {
+                    $pdo->prepare("UPDATE matches SET score_b = GREATEST(0, LEAST(target_score, score_b - ?)) WHERE id=?")
+                        ->execute([$applied, $matchId]);
+                }
+            }
+
+            // Event entfernen
+            $pdo->prepare("DELETE FROM match_events WHERE id=?")->execute([(int)$e['id']]);
+
+            // neuen Stand lesen
+            $stmt=$pdo->prepare("SELECT score_a,score_b,target_score,status FROM matches WHERE id=? LIMIT 1");
+            $stmt->execute([$matchId]); $row2=$stmt->fetch();
+
+            $pdo->commit();
+
+            $reached = ((int)$row2['score_a'] >= (int)$row2['target_score']) || ((int)$row2['score_b'] >= (int)$row2['target_score']);
+            echo json_encode([
+                'ok'=>true,
+                'match_id'=>$matchId,
+                'score_a'=>(int)$row2['score_a'],
+                'score_b'=>(int)$row2['score_b'],
+                'target_score'=>(int)$row2['target_score'],
+                'status'=>$row2['status'],
+                'reached'=>$reached,
+            ]);
+            exit;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['ok'=>false,'error'=>'undo_failed','message'=>$e->getMessage()]);
+            exit;
+        }
     }
 
     // POST finish (manuell)
