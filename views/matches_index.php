@@ -39,15 +39,16 @@
 
             <div class="col-md-2">
                 <label for="from" class="form-label">From</label>
-                <input id="from" name="from" type="date" class="form-control"
-                    value="<?= htmlspecialchars($selectedFrom ?? '') ?>">
+                <input id="from" name="from" type="text" class="form-control js-date"
+                    value="<?= htmlspecialchars($selectedFrom ?? '') ?>" placeholder="YYYY-MM-DD" autocomplete="off">
             </div>
 
             <div class="col-md-2">
                 <label for="to" class="form-label">To</label>
-                <input id="to" name="to" type="date" class="form-control"
-                    value="<?= htmlspecialchars($selectedTo ?? '') ?>">
+                <input id="to" name="to" type="text" class="form-control js-date"
+                    value="<?= htmlspecialchars($selectedTo ?? '') ?>" placeholder="YYYY-MM-DD" autocomplete="off">
             </div>
+
 
             <div class="col-md-1 d-flex gap-2">
                 <button class="btn btn-primary w-100" type="submit">Apply</button>
@@ -99,4 +100,22 @@
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.flatpickr) {
+        flatpickr('#from', {
+            dateFormat: 'Y-m-d',
+            maxDate: 'today',
+            allowInput: true
+        });
+        flatpickr('#to', {
+            dateFormat: 'Y-m-d',
+            maxDate: 'today',
+            allowInput: true
+        });
+    }
+});
+</script>
+
 <?php $content = ob_get_clean(); include __DIR__ . '/layout.php'; ?>
