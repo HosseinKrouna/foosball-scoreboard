@@ -24,6 +24,7 @@
 <div class="card bg-transparent border-0 shadow-sm">
     <div class="card-body">
         <form action="/match" method="post">
+            <?= csrf_field() ?>
             <div class="mb-3">
                 <label for="mode" class="form-label">Mode</label>
                 <select id="mode" name="mode" class="form-select" required>

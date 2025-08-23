@@ -4,7 +4,6 @@
     <div class="d-flex gap-2">
         <a class="btn btn-outline-info btn-sm" href="/leaderboard">Leaderboard</a>
         <a class="btn btn-outline-secondary btn-sm" href="/matches">History</a>
-        <button id="btnMute" class="btn btn-outline-secondary btn-sm" type="button" title="Toggle sound">🔊</button>
         <a class="btn btn-primary btn-sm" href="/match/new">+ New Match</a>
     </div>
 </div>
@@ -18,6 +17,7 @@
 
 <div id="appAlert" class="alert alert-warning py-2 d-none"></div>
 
+<!-- Header-Infos -->
 <div class="card bg-transparent border-0 shadow-soft mb-3">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -34,6 +34,7 @@
     </div>
 </div>
 
+<!-- Scoreboard -->
 <div class="card bg-transparent border-0 shadow-soft">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -84,7 +85,7 @@
 </div>
 
 <script>
-// BASE robust aus URL ziehen
+// ===== Base-URL & Konstanten =====
 (function() {
     const m = window.location.pathname.match(/^(.*)\/match\/\d+(?:\/.*)?$/);
     window.__BASE__ = m ? m[1] : '';
@@ -94,18 +95,21 @@ const MID = <?= (int)$match['id'] ?>;
 const API = (p) => BASE + p;
 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// DOM
+// CSRF-Token aus <meta> lesen (Layout)
+const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+// ===== DOM-Refs =====
 const elA = document.getElementById('scoreA');
 const elB = document.getElementById('scoreB');
 const alertBox = document.getElementById('appAlert');
 const btnFinish = document.getElementById('btnFinish');
 const btnUndo = document.getElementById('btnUndo');
-const statusTextEl = document.getElementById('matchStatusText');
+const statusText = document.getElementById('matchStatusText');
 
 let finishedApplied = <?= (($match['status'] ?? 'in_progress') !== 'finished') ? 'false' : 'true' ?>;
 let poller = null;
 
-// Helpers
+// ===== UI-Helfer =====
 function showAlert(msg, type = 'warning') {
     alertBox.className = `alert alert-${type} py-2`;
     alertBox.textContent = msg;
@@ -118,14 +122,6 @@ function bump(el) {
     if (reduce) return;
     el.classList.add('bump');
     setTimeout(() => el.classList.remove('bump'), 240);
-}
-async function api(path, opts) {
-    const res = await fetch(API(path), opts);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.ok === false) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-    }
-    return data;
 }
 
 function pulseFinishCTA(on) {
@@ -154,10 +150,11 @@ function setFinishedUI() {
         badge.innerHTML = '<span class="badge bg-success">Finished</span>';
         document.querySelector('.card .card-body').appendChild(badge);
     }
-    if (statusTextEl) {
-        statusTextEl.innerHTML = statusTextEl.innerHTML.replace('In progress', 'Finished');
-        if (!/Finished/.test(statusTextEl.textContent)) {
-            statusTextEl.innerHTML = 'Finished · ' + statusTextEl.textContent.replace(/^.*·\s*/, '');
+    if (statusText) {
+        // "In progress · 2025-..." -> "Finished · 2025-..."
+        statusText.innerHTML = statusText.innerHTML.replace('In progress', 'Finished');
+        if (!/Finished/.test(statusText.textContent)) {
+            statusText.innerHTML = 'Finished · ' + statusText.textContent.replace(/^.*·\s*/, '');
         }
     }
     pulseFinishCTA(false);
@@ -171,7 +168,24 @@ function applyStatus(status) {
     if (status === 'finished') setFinishedUI();
 }
 
-// Sync
+// ===== API-Helper (sendet CSRF-Header bei POST) =====
+async function api(path, opts = {}) {
+    const isPostLike = (opts.method || 'GET').toUpperCase() !== 'GET';
+    const headers = Object.assign({}, opts.headers || {}, isPostLike && CSRF ? {
+        'X-CSRF-Token': CSRF
+    } : {});
+    const res = await fetch(API(path), Object.assign({}, opts, {
+        headers
+    }));
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) {
+        const err = data.error || `HTTP ${res.status}`;
+        throw new Error(err);
+    }
+    return data;
+}
+
+// ===== Sync-Logik =====
 async function syncScores(force = false) {
     try {
         const d = await api(`/api/match/${MID}`);
@@ -204,31 +218,36 @@ window.addEventListener('pageshow', (e) => {
     if (e.persisted) syncScores(true);
 });
 
-// Score Buttons
+// ===== Score ändern (Buttons nutzen diese Funktion) =====
+async function changeScore(team, delta) {
+    const body = new URLSearchParams({
+        team,
+        delta: String(delta)
+    });
+    const d = await api(`/api/match/${MID}/score`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body
+    });
+    if (typeof d.score_a !== 'undefined') elA.textContent = d.score_a;
+    if (typeof d.score_b !== 'undefined') elB.textContent = d.score_b;
+    bump(team === 'A' ? elA : elB);
+    if (d.reached === true) showAlert('Target reached — press "Finish match" to finalize.', 'success');
+    pulseFinishCTA(d.reached === true);
+    applyStatus(d.status);
+    return d;
+}
+
+// Buttons: +/−
 document.querySelectorAll('.js-score').forEach(btn => {
     btn.addEventListener('click', async () => {
         const team = btn.dataset.team;
         const delta = parseInt(btn.dataset.delta || '0', 10);
         btn.disabled = true;
         try {
-            const body = new URLSearchParams({
-                team,
-                delta: String(delta)
-            });
-            const d = await api(`/api/match/${MID}/score`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body
-            });
-            elA.textContent = d.score_a;
-            elB.textContent = d.score_b;
-            bump(team === 'A' ? elA : elB);
-            if (d.reached === true) showAlert('Target reached — press "Finish match" to finalize.',
-                'success');
-            pulseFinishCTA(d.reached === true);
-            applyStatus(d.status);
+            await changeScore(team, delta);
         } catch (e) {
             showAlert('Could not change score: ' + e.message, 'danger');
         } finally {
@@ -246,8 +265,8 @@ if (btnUndo) {
                 method: 'POST'
             });
             elA.textContent = d.score_a;
-            elB.textContent = d.score_b;
             bump(elA);
+            elB.textContent = d.score_b;
             bump(elB);
             pulseFinishCTA(d.reached === true);
             showAlert('Last action undone.', 'info');
@@ -271,7 +290,7 @@ if (btnFinish) {
             });
             elA.textContent = d.score_a ?? elA.textContent;
             elB.textContent = d.score_b ?? elB.textContent;
-            applyStatus('finished');
+            setFinishedUI();
             showAlert('Match finished.', 'success');
         } catch (e) {
             showAlert('Could not finish: ' + e.message, 'danger');
@@ -280,139 +299,12 @@ if (btnFinish) {
     });
 }
 
-
-// ====== Keyboard-Shortcuts & einfache Sounds ======
-
-// Mute-Status merken
-let muted = (localStorage.getItem('tv_muted') === '1');
-
-// Mute-Button referenzieren (falls vorhanden)
-const btnMute = document.getElementById('btnMute');
-
-function renderMute() {
-    if (!btnMute) return;
-    btnMute.textContent = muted ? '🔇' : '🔊';
-    btnMute.setAttribute('aria-pressed', muted ? 'true' : 'false');
-}
-renderMute();
-
-if (btnMute) {
-    btnMute.addEventListener('click', () => {
-        muted = !muted;
-        localStorage.setItem('tv_muted', muted ? '1' : '0');
-        renderMute();
-    });
-}
-
-// Simpler Ton über WebAudio
-let audioCtx = null;
-
-function playTone(freq = 660, durMs = 80, gain = 0.04) {
-    if (muted || reduce) return;
-    try {
-        audioCtx = audioCtx || new(window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        osc.frequency.value = freq;
-        osc.type = 'sine';
-        g.gain.value = gain;
-        osc.connect(g);
-        g.connect(audioCtx.destination);
-        osc.start();
-        setTimeout(() => {
-            osc.stop();
-            osc.disconnect();
-            g.disconnect();
-        }, durMs);
-    } catch (_) {
-        /* ignore */ }
-}
-
-// Helper: Score ändern (gleiche API wie Buttons)
-async function changeScore(team, delta) {
-    const body = new URLSearchParams({
-        team,
-        delta: String(delta)
-    });
-    const d = await api(`/api/match/${MID}/score`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body
-    });
-    if (typeof d.score_a !== 'undefined') elA.textContent = d.score_a;
-    if (typeof d.score_b !== 'undefined') elB.textContent = d.score_b;
-    bump(team === 'A' ? elA : elB);
-    if (delta > 0) playTone(740, 90, 0.05);
-    else playTone(520, 90, 0.05);
-    // Falls Ziel erreicht: visueller Hinweis, kein Auto-Finish
-    if (d.reached === true) {
-        showAlert('Target reached — press "Finish match" to finalize.', 'success');
-        const btnFinish = document.getElementById('btnFinish');
-        if (btnFinish) {
-            btnFinish.classList.remove('btn-primary');
-            btnFinish.classList.add('btn-success');
-            btnFinish.style.boxShadow = '0 0 0.8rem rgba(40,167,69,.55)';
-        }
-    }
-    return d;
-}
-
-// Undo auslösen
-async function triggerUndo() {
-    const btnUndo = document.getElementById('btnUndo');
-    if (btnUndo) btnUndo.disabled = true;
-    try {
-        const d = await api(`/api/match/${MID}/undo`, {
-            method: 'POST'
-        });
-        elA.textContent = d.score_a;
-        elB.textContent = d.score_b;
-        bump(elA);
-        bump(elB);
-        playTone(440, 120, 0.05);
-        showAlert('Last action undone.', 'info');
-    } catch (e) {
-        showAlert('Undo failed: ' + e.message, 'danger');
-    } finally {
-        if (btnUndo) btnUndo.disabled = false;
-    }
-}
-
-// Finish auslösen
-async function triggerFinish() {
-    const btnFinish = document.getElementById('btnFinish');
-    if (!btnFinish) return;
-    if (!confirm('Finish this match and update stats/Elo?')) return;
-    btnFinish.disabled = true;
-    try {
-        await api(`/api/match/${MID}/finish`, {
-            method: 'POST'
-        });
-        playTone(880, 180, 0.06);
-        showAlert('Match finished.', 'success');
-        // UI abbauen
-        document.querySelectorAll('.js-score').forEach(b => b.remove());
-        const badge = document.createElement('div');
-        badge.className = 'text-center mt-3';
-        badge.innerHTML = '<span class="badge bg-success">Finished</span>';
-        document.querySelector('.card .card-body').appendChild(badge);
-        if (typeof poller !== 'undefined') clearInterval(poller);
-        await syncScores();
-    } catch (e) {
-        showAlert('Could not finish: ' + e.message, 'danger');
-        btnFinish.disabled = false;
-    }
-}
-
-// Tastatur-Shortcuts
-// A=+A, Z=-A, K=+B, M=-B, U=Undo, Enter=Finish, Space=Mute
+// ===== Keyboard-Shortcuts =====
+// A=+A, Z=-A, K=+B, M=-B, U=Undo, Enter=Finish
 const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON']);
 window.addEventListener('keydown', async (e) => {
-    // Eingabefelder nicht stören
     const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
-    if (INPUT_TAGS.has(tag) && !(tag === 'BUTTON')) return;
+    if (INPUT_TAGS.has(tag) && tag !== 'BUTTON') return;
 
     const k = e.key.toLowerCase();
     try {
@@ -430,18 +322,13 @@ window.addEventListener('keydown', async (e) => {
             await changeScore('B', -1);
         } else if (k === 'u') {
             e.preventDefault();
-            await triggerUndo();
+            btnUndo?.click();
         } else if (k === 'enter') {
             e.preventDefault();
-            await triggerFinish();
-        } else if (k === ' ') {
-            e.preventDefault();
-            muted = !muted;
-            localStorage.setItem('tv_muted', muted ? '1' : '0');
-            renderMute();
+            btnFinish?.click();
         }
     } catch (_) {
-        /* Alerts kommen aus den Funktionen */ }
+        /* Fehler werden bereits angezeigt */ }
 });
 </script>
 <?php $content = ob_get_clean(); include __DIR__ . '/layout.php'; ?>
