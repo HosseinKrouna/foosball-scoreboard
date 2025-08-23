@@ -11,7 +11,7 @@
 <form class="card bg-transparent border-0 shadow-sm mb-3" method="get" action="/matches">
     <div class="card-body">
         <div class="row g-3 align-items-end">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label for="team_id" class="form-label">Team</label>
                 <select id="team_id" name="team_id" class="form-select">
                     <option value="0">All teams</option>
@@ -23,22 +23,38 @@
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-4">
+
+            <div class="col-md-3">
                 <label for="status" class="form-label">Status</label>
                 <select id="status" name="status" class="form-select">
                     <?php
-              $opts = ['all' => 'All', 'in_progress' => 'In progress', 'finished' => 'Finished'];
-              foreach ($opts as $val => $label):
+              $opts = ['all'=>'All','in_progress'=>'In progress','finished'=>'Finished'];
+              foreach ($opts as $val=>$label):
                 $sel = (isset($selectedStatus) && $selectedStatus === $val) ? 'selected' : '';
             ?>
                     <option value="<?= $val ?>" <?= $sel ?>><?= $label ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-2 d-flex gap-2">
+
+            <div class="col-md-2">
+                <label for="from" class="form-label">From</label>
+                <input id="from" name="from" type="date" class="form-control"
+                    value="<?= htmlspecialchars($selectedFrom ?? '') ?>">
+            </div>
+
+            <div class="col-md-2">
+                <label for="to" class="form-label">To</label>
+                <input id="to" name="to" type="date" class="form-control"
+                    value="<?= htmlspecialchars($selectedTo ?? '') ?>">
+            </div>
+
+            <div class="col-md-1 d-flex gap-2">
                 <button class="btn btn-primary w-100" type="submit">Apply</button>
-                <?php if (!empty($selectedTeamId) || (isset($selectedStatus) && $selectedStatus !== 'all')): ?>
-                <a class="btn btn-outline-secondary w-100" href="/matches">Reset</a>
+            </div>
+            <div class="col-md-12 mt-2">
+                <?php if (!empty($selectedTeamId) || (isset($selectedStatus) && $selectedStatus !== 'all') || !empty($selectedFrom) || !empty($selectedTo)): ?>
+                <a class="btn btn-outline-secondary btn-sm" href="/matches">Reset filters</a>
                 <?php endif; ?>
             </div>
         </div>

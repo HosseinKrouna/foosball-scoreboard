@@ -293,20 +293,32 @@ function route(string $method, string $path): string {
         echo json_encode($res); exit;
     }
 
-   // --- Matches history (filters: team, status) ---
+  // --- Matches history (filters: team, status, date from/to) ---
 if ($method === 'GET' && $path === '/matches') {
     $title = 'Matches';
     $pdo = db();
 
-    // Filter einlesen & validieren
+    // Query-Filter einlesen
     $teamId = isset($_GET['team_id']) ? max(0, (int)$_GET['team_id']) : 0;
     $status = $_GET['status'] ?? 'all';
     $status = in_array($status, ['all','in_progress','finished'], true) ? $status : 'all';
 
-    // Teams für Filter-Dropdown
+    $from = $_GET['from'] ?? ''; // YYYY-MM-DD
+    $to   = $_GET['to']   ?? ''; // YYYY-MM-DD
+
+    // einfache Validierung YYYY-MM-DD
+    $isDate = function(string $d): bool {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) return false;
+        [$Y,$m,$d2] = array_map('intval', explode('-', $d));
+        return checkdate($m, $d2, $Y);
+    };
+    $fromValid = $isDate($from);
+    $toValid   = $isDate($to);
+
+    // Teams für Dropdown
     $teams = $pdo->query("SELECT id, name FROM teams ORDER BY name ASC")->fetchAll();
 
-    // Query dynamisch aufbauen
+    // SQL dynamisch bauen
     $sql = "
         SELECT m.id, m.played_at, m.status, m.score_a, m.score_b,
                a.name AS team_a, b.name AS team_b
@@ -325,6 +337,17 @@ if ($method === 'GET' && $path === '/matches') {
         $where[] = "m.status = ?";
         $args[]  = $status;
     }
+    if ($fromValid) {
+        $where[] = "m.played_at >= ?";
+        $args[]  = $from . ' 00:00:00';
+    }
+    if ($toValid) {
+        // inklusive bis-Ende-des-Tages: exklusiv auf den Folgetag 00:00
+        $end = date('Y-m-d', strtotime($to . ' +1 day'));
+        $where[] = "m.played_at < ?";
+        $args[]  = $end . ' 00:00:00';
+    }
+
     if ($where) $sql .= " WHERE " . implode(" AND ", $where);
     $sql .= " ORDER BY m.id DESC LIMIT 50";
 
@@ -332,14 +355,17 @@ if ($method === 'GET' && $path === '/matches') {
     $stmt->execute($args);
     $matches = $stmt->fetchAll();
 
-    // Auswahl an View weiterreichen
-    $selectedTeamId   = $teamId;
-    $selectedStatus   = $status;
+    // Auswahl an View
+    $selectedTeamId = $teamId;
+    $selectedStatus = $status;
+    $selectedFrom   = $fromValid ? $from : '';
+    $selectedTo     = $toValid   ? $to   : '';
 
     ob_start();
     include __DIR__ . '/../views/matches_index.php';
     return (string)ob_get_clean();
 }
+
 
 
 
