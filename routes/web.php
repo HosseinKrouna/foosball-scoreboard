@@ -293,20 +293,19 @@ function route(string $method, string $path): string {
         echo json_encode($res); exit;
     }
 
-  // --- Matches history (filters: team, status, date from/to) ---
+// --- Matches history (filters + pagination) ---
 if ($method === 'GET' && $path === '/matches') {
     $title = 'Matches';
     $pdo = db();
 
-    // Query-Filter einlesen
+    // Filter einlesen
     $teamId = isset($_GET['team_id']) ? max(0, (int)$_GET['team_id']) : 0;
     $status = $_GET['status'] ?? 'all';
     $status = in_array($status, ['all','in_progress','finished'], true) ? $status : 'all';
+    $from = $_GET['from'] ?? '';
+    $to   = $_GET['to']   ?? '';
 
-    $from = $_GET['from'] ?? ''; // YYYY-MM-DD
-    $to   = $_GET['to']   ?? ''; // YYYY-MM-DD
-
-    // einfache Validierung YYYY-MM-DD
+    // Datum prüfen
     $isDate = function(string $d): bool {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) return false;
         [$Y,$m,$d2] = array_map('intval', explode('-', $d));
@@ -315,10 +314,16 @@ if ($method === 'GET' && $path === '/matches') {
     $fromValid = $isDate($from);
     $toValid   = $isDate($to);
 
+    // Pagination
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $pageSize  = 20;
+    $limitPlus = $pageSize + 1;              // 1 extra zum Erkennen von "hasNext"
+    $offset    = ($page - 1) * $pageSize;
+
     // Teams für Dropdown
     $teams = $pdo->query("SELECT id, name FROM teams ORDER BY name ASC")->fetchAll();
 
-    // SQL dynamisch bauen
+    // SQL bauen
     $sql = "
         SELECT m.id, m.played_at, m.status, m.score_a, m.score_b,
                a.name AS team_a, b.name AS team_b
@@ -329,31 +334,25 @@ if ($method === 'GET' && $path === '/matches') {
     $where = [];
     $args  = [];
 
-    if ($teamId > 0) {
-        $where[] = "(m.team_a_id = ? OR m.team_b_id = ?)";
-        $args[] = $teamId; $args[] = $teamId;
-    }
-    if ($status !== 'all') {
-        $where[] = "m.status = ?";
-        $args[]  = $status;
-    }
-    if ($fromValid) {
-        $where[] = "m.played_at >= ?";
-        $args[]  = $from . ' 00:00:00';
-    }
-    if ($toValid) {
-        // inklusive bis-Ende-des-Tages: exklusiv auf den Folgetag 00:00
-        $end = date('Y-m-d', strtotime($to . ' +1 day'));
-        $where[] = "m.played_at < ?";
-        $args[]  = $end . ' 00:00:00';
-    }
+    if ($teamId > 0) { $where[]="(m.team_a_id = ? OR m.team_b_id = ?)"; $args[]=$teamId; $args[]=$teamId; }
+    if ($status !== 'all') { $where[]="m.status = ?"; $args[]=$status; }
+    if ($fromValid) { $where[]="m.played_at >= ?"; $args[]=$from.' 00:00:00'; }
+    if ($toValid)   { $end = date('Y-m-d', strtotime($to.' +1 day')); $where[]="m.played_at < ?"; $args[]=$end.' 00:00:00'; }
 
-    if ($where) $sql .= " WHERE " . implode(" AND ", $where);
-    $sql .= " ORDER BY m.id DESC LIMIT 50";
+    if ($where) $sql .= " WHERE ".implode(" AND ", $where);
+    $sql .= " ORDER BY m.id DESC LIMIT ".(int)$limitPlus." OFFSET ".(int)$offset;
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($args);
     $matches = $stmt->fetchAll();
+
+    // hasNext/hasPrev bestimmen
+    $hasNext = false;
+    if (count($matches) > $pageSize) {
+        $hasNext = true;
+        array_pop($matches); // extra Zeile entfernen
+    }
+    $hasPrev = $page > 1;
 
     // Auswahl an View
     $selectedTeamId = $teamId;

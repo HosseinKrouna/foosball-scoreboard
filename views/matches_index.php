@@ -49,7 +49,6 @@
                     value="<?= htmlspecialchars($selectedTo ?? '') ?>" placeholder="YYYY-MM-DD" autocomplete="off">
             </div>
 
-
             <div class="col-md-1 d-flex gap-2">
                 <button class="btn btn-primary w-100" type="submit">Apply</button>
             </div>
@@ -101,7 +100,35 @@
     </div>
 </div>
 
+<?php
+    // Pagination-Links bauen (Filter erhalten)
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $params = [];
+    if (!empty($selectedTeamId)) $params['team_id'] = (int)$selectedTeamId;
+    if (isset($selectedStatus) && $selectedStatus !== 'all') $params['status'] = $selectedStatus;
+    if (!empty($selectedFrom)) $params['from'] = $selectedFrom;
+    if (!empty($selectedTo))   $params['to']   = $selectedTo;
+
+    $prevUrl = null; $nextUrl = null;
+    if (!empty($hasPrev)) { $q = $params; $q['page'] = $page - 1; $prevUrl = '/matches?' . http_build_query($q); }
+    if (!empty($hasNext)) { $q = $params; $q['page'] = $page + 1; $nextUrl = '/matches?' . http_build_query($q); }
+  ?>
+
+<nav class="mt-3" aria-label="Pagination">
+    <ul class="pagination justify-content-center">
+        <li class="page-item <?= empty($hasPrev) ? 'disabled' : '' ?>">
+            <a class="page-link" href="<?= $prevUrl ?: '#' ?>" tabindex="-1"
+                aria-disabled="<?= empty($hasPrev) ? 'true':'false' ?>">« Prev</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">Page <?= (int)$page ?></span></li>
+        <li class="page-item <?= empty($hasNext) ? 'disabled' : '' ?>">
+            <a class="page-link" href="<?= $nextUrl ?: '#' ?>">Next »</a>
+        </li>
+    </ul>
+</nav>
+
 <script>
+// Flatpickr init (falls eingebunden)
 document.addEventListener('DOMContentLoaded', function() {
     if (window.flatpickr) {
         flatpickr('#from', {
@@ -117,5 +144,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-
 <?php $content = ob_get_clean(); include __DIR__ . '/layout.php'; ?>
