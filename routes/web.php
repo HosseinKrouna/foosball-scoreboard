@@ -293,25 +293,54 @@ function route(string $method, string $path): string {
         echo json_encode($res); exit;
     }
 
-    // --- Matches history (basic list) ---
+   // --- Matches history (filters: team, status) ---
 if ($method === 'GET' && $path === '/matches') {
     $title = 'Matches';
     $pdo = db();
-    $stmt = $pdo->query("
+
+    // Filter einlesen & validieren
+    $teamId = isset($_GET['team_id']) ? max(0, (int)$_GET['team_id']) : 0;
+    $status = $_GET['status'] ?? 'all';
+    $status = in_array($status, ['all','in_progress','finished'], true) ? $status : 'all';
+
+    // Teams für Filter-Dropdown
+    $teams = $pdo->query("SELECT id, name FROM teams ORDER BY name ASC")->fetchAll();
+
+    // Query dynamisch aufbauen
+    $sql = "
         SELECT m.id, m.played_at, m.status, m.score_a, m.score_b,
                a.name AS team_a, b.name AS team_b
         FROM matches m
         JOIN teams a ON a.id = m.team_a_id
         JOIN teams b ON b.id = m.team_b_id
-        ORDER BY m.id DESC
-        LIMIT 20
-    ");
+    ";
+    $where = [];
+    $args  = [];
+
+    if ($teamId > 0) {
+        $where[] = "(m.team_a_id = ? OR m.team_b_id = ?)";
+        $args[] = $teamId; $args[] = $teamId;
+    }
+    if ($status !== 'all') {
+        $where[] = "m.status = ?";
+        $args[]  = $status;
+    }
+    if ($where) $sql .= " WHERE " . implode(" AND ", $where);
+    $sql .= " ORDER BY m.id DESC LIMIT 50";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($args);
     $matches = $stmt->fetchAll();
+
+    // Auswahl an View weiterreichen
+    $selectedTeamId   = $teamId;
+    $selectedStatus   = $status;
 
     ob_start();
     include __DIR__ . '/../views/matches_index.php';
     return (string)ob_get_clean();
 }
+
 
 
     http_response_code(404); return 'Not found';
