@@ -138,3 +138,5 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
 .text-dark {
   color: #e6f0ff !important;
 }
+
+#btnMute { min-width: 2.2rem; text-align: center; }
