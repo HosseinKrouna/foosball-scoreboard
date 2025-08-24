@@ -1,12 +1,4 @@
 <?php ob_start(); ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h3 mb-0">Match #<?= (int)$match['id'] ?></h1>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-info btn-sm" href="/leaderboard">Leaderboard</a>
-        <a class="btn btn-outline-secondary btn-sm" href="/matches">History</a>
-        <a class="btn btn-primary btn-sm" href="/match/new">+ New Match</a>
-    </div>
-</div>
 
 <?php if (!empty($created)): ?>
 <div class="alert alert-success py-2">Match created — adjust scores on this TV view.</div>
@@ -328,7 +320,8 @@ window.addEventListener('keydown', async (e) => {
             btnFinish?.click();
         }
     } catch (_) {
-        /* Fehler werden bereits angezeigt */ }
+        /* Fehler werden bereits angezeigt */
+    }
 });
 </script>
 <?php $content = ob_get_clean(); include __DIR__ . '/layout.php'; ?>

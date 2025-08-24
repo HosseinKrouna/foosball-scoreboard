@@ -1,8 +1,4 @@
 <?php ob_start(); ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h3 mb-0">Leaderboard</h1>
-    <a class="btn btn-outline-info btn-sm" href="/">Home</a>
-</div>
 
 <?php if (empty($teams)): ?>
 <div class="alert alert-warning">No teams yet.</div>

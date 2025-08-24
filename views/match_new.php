@@ -1,11 +1,4 @@
 <?php ob_start(); ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h3 mb-0">New Match</h1>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-info btn-sm" href="/leaderboard">Leaderboard</a>
-        <a class="btn btn-outline-secondary btn-sm" href="/matches">History</a>
-    </div>
-</div>
 
 <?php if (!empty($errors)): ?>
 <div class="alert alert-danger">
