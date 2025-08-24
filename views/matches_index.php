@@ -1,11 +1,4 @@
 <?php ob_start(); ?>
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h3 mb-0">Matches</h1>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-info btn-sm" href="/leaderboard">Leaderboard</a>
-        <a class="btn btn-primary btn-sm" href="/match/new">+ New Match</a>
-    </div>
-</div>
 
 <!-- Filter -->
 <form class="card bg-transparent border-0 shadow-sm mb-3" method="get" action="/matches">
