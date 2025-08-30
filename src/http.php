@@ -33,3 +33,10 @@ function csrf_ok_form(): bool {
 function csrf_ok_header(): bool {
     return function_exists('csrf_validate') ? csrf_validate($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null) : true;
 }
+
+/** Gibt die PHP-Session frei, damit parallele AJAX-Requests nicht blockieren */
+function session_unblock(): void {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        @session_write_close(); // schließt das Session-File und gibt den Lock frei
+    }
+}
