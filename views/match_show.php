@@ -160,6 +160,7 @@ function applyStatus(status) {
     if (status === 'finished') setFinishedUI();
 }
 
+
 // ===== API-Helper (sendet CSRF-Header bei POST) =====
 async function api(path, opts = {}) {
     const isPostLike = (opts.method || 'GET').toUpperCase() !== 'GET';
