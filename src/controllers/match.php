@@ -62,9 +62,6 @@ function ctrl_match_show(int $matchId): string {
 
 /* --- API: GET state --- */
 function ctrl_api_match_get(int $matchId): void {
-
- session_unblock();
-
     $pdo = db();
     $row = repo_match_state($pdo, $matchId, false);
     if (!$row) json_response(['ok'=>false,'error'=>'not_found'], 404);
@@ -78,9 +75,7 @@ function ctrl_api_match_get(int $matchId): void {
 /* --- API: POST score +/- --- */
 function ctrl_api_match_score(int $matchId): void {
     if (!csrf_ok_header()) json_response(['ok'=>false,'error'=>'csrf'], 403);
-
     session_unblock();
-    
     $pdo = db();
 
     $team  = strtoupper(substr((string)($_POST['team'] ?? ''), 0, 1));
@@ -146,9 +141,7 @@ function ctrl_api_match_score(int $matchId): void {
 /* --- API: POST undo --- */
 function ctrl_api_match_undo(int $matchId): void {
     if (!csrf_ok_header()) json_response(['ok'=>false,'error'=>'csrf'], 403);
-
     session_unblock();
-
     $pdo = db();
 
     try {
@@ -196,9 +189,7 @@ function ctrl_api_match_undo(int $matchId): void {
 /* --- API: POST finish --- */
 function ctrl_api_match_finish(int $matchId): void {
     if (!csrf_ok_header()) json_response(['ok'=>false,'error'=>'csrf'], 403);
-
     session_unblock();
-
     $pdo = db();
     $res = finish_match($pdo, $matchId);
     if (($res['ok'] ?? false) === true) json_response($res);

@@ -29,6 +29,7 @@ function repo_match_full(PDO $pdo, int $id): ?array {
 }
 
 function repo_match_state(PDO $pdo, int $id, bool $forUpdate = false): ?array {
+    // MariaDB/MySQL: LIMIT muss vor FOR UPDATE stehen
     $sql = "SELECT score_a, score_b, target_score, status FROM matches WHERE id=? LIMIT 1";
     if ($forUpdate) {
         $sql .= " FOR UPDATE";
