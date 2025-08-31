@@ -4,15 +4,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/../elo.php';
 require_once __DIR__ . '/../validation.php';
 require_once __DIR__ . '/../repo.php';
+require_once __DIR__ . '/../domain/match_domain.php';
 
-/** -------- HTML-Helfer (View-Daten) -------- */
+/* ---------------- HTML (View-Daten) ---------------- */
+
 function svc_match_new_form(PDO $pdo): array {
-    return [
-        'title'  => 'New Match',
-        'teams'  => repo_list_teams($pdo),
-        'errors' => [],
-        'old'    => [],
-    ];
+    return ['title'=>'New Match','teams'=>repo_list_teams($pdo),'errors'=>[],'old'=>[]];
 }
 
 function svc_match_create(PDO $pdo, array $post): array {
@@ -22,95 +19,91 @@ function svc_match_create(PDO $pdo, array $post): array {
     if (empty($errors) && !repo_teams_exist($pdo, $d['team_a_id'], $d['team_b_id'])) {
         $errors[] = 'Unknown team selected.';
     }
-
-    if (!empty($errors)) {
-        return ['ok'=>false, 'errors'=>$errors, 'old'=>$d, 'teams'=>repo_list_teams($pdo)];
-    }
+    if ($errors) return ['ok'=>false,'errors'=>$errors,'old'=>$d,'teams'=>repo_list_teams($pdo)];
 
     $id = repo_match_insert($pdo, $d['mode'], $d['team_a_id'], $d['team_b_id'], $d['target_score'], $d['notes']);
-    return ['ok'=>true, 'match_id'=>$id];
+    return ['ok'=>true,'match_id'=>$id];
 }
 
 function svc_match_show_data(PDO $pdo, int $matchId, array $query): array {
     $match = repo_match_full($pdo, $matchId);
-    if (!$match) return ['ok'=>false, 'http'=>404, 'error'=>'not_found'];
+    if (!$match) return ['ok'=>false,'http'=>404,'error'=>'not_found'];
 
     return [
-        'ok'          => true,
-        'title'       => 'Match #'.$matchId,
-        'match'       => $match,
+        'ok'=>true,
+        'title'=>'Match #'.$matchId,
+        'match'=>$match,
         'isInProgress'=> (($match['status'] ?? 'in_progress') !== 'finished'),
-        'created'     => isset($query['created'])  && $query['created']  === '1',
-        'finishedMsg' => isset($query['finished']) && $query['finished'] === '1',
-        'err'         => $query['err'] ?? null,
+        'created'=>     (isset($query['created'])  && $query['created']  === '1'),
+        'finishedMsg'=> (isset($query['finished']) && $query['finished'] === '1'),
+        'err'=>         ($query['err'] ?? null),
     ];
 }
 
-/** -------- API-Payloads (JSON) -------- */
+/* ---------------- API (JSON-Payloads) ---------------- */
+
 function svc_match_get_state(PDO $pdo, int $matchId): array {
     $row = repo_match_state($pdo, $matchId, false);
     if (!$row) return ['ok'=>false,'http'=>404,'error'=>'not_found'];
+    return ['ok'=>true] + $row + ['reached'=> md_reached((int)$row['score_a'], (int)$row['score_b'], (int)$row['target_score'])];
+}
 
-    $reached = ((int)$row['score_a'] >= (int)$row['target_score'])
-            || ((int)$row['score_b'] >= (int)$row['target_score']);
+/** interne Helfer zum Kürzen */
+function ms_state_lock(PDO $pdo, int $id): ?array {
+    return repo_match_state($pdo, $id, true);
+}
+function ms_apply_delta(PDO $pdo, int $matchId, array $state, string $team, int $delta): array {
+    $target = (int)$state['target_score'];
+    $a = (int)$state['score_a'];
+    $b = (int)$state['score_b'];
 
-    return ['ok'=>true] + $row + ['reached'=>$reached];
+    if ($team === 'A') {
+        $newA = max(0, min($target, $a + $delta));
+        $applied = $newA - $a;
+        if ($applied !== 0) {
+            repo_match_update_score($pdo, $matchId, 'A', $newA);
+            repo_match_insert_event($pdo, $matchId, 'A', $delta, $applied);
+        }
+        return [$newA, $b];
+    }
+    // team B
+    $newB = max(0, min($target, $b + $delta));
+    $applied = $newB - $b;
+    if ($applied !== 0) {
+        repo_match_update_score($pdo, $matchId, 'B', $newB);
+        repo_match_insert_event($pdo, $matchId, 'B', $delta, $applied);
+    }
+    return [$a, $newB];
 }
 
 function svc_match_change_score(PDO $pdo, int $matchId, $teamRaw, $deltaRaw): array {
-    $team  = strtoupper(substr((string)$teamRaw, 0, 1));
-    $delta = (int)$deltaRaw;
-    if ($delta > 1)  $delta = 1;
-    if ($delta < -1) $delta = -1;
-    if (!in_array($team, ['A','B'], true) || $delta === 0) {
-        return ['ok'=>false,'http'=>400,'error'=>'bad_input'];
-    }
+    $team  = md_team((string)$teamRaw);
+    $delta = md_delta($deltaRaw);
+    if ($team === '' || $delta === 0) return ['ok'=>false,'http'=>400,'error'=>'bad_input'];
 
     try {
         $pdo->beginTransaction();
 
-        $state = repo_match_state($pdo, $matchId, true);
-        if (!$state) { $pdo->rollBack(); return ['ok'=>false,'http'=>404,'error'=>'not_found']; }
+        $state = ms_state_lock($pdo, $matchId);
+        if (!$state)                  { $pdo->rollBack(); return ['ok'=>false,'http'=>404,'error'=>'not_found']; }
         if (($state['status'] ?? '') === 'finished') {
             $pdo->rollBack(); return ['ok'=>false,'http'=>409,'error'=>'not_in_progress'];
         }
 
+        [$scoreA, $scoreB] = ms_apply_delta($pdo, $matchId, $state, $team, $delta);
         $target = (int)$state['target_score'];
-        $curA   = (int)$state['score_a'];
-        $curB   = (int)$state['score_b'];
-
-        if ($team === 'A') {
-            $newA    = max(0, min($target, $curA + $delta));
-            $applied = $newA - $curA;
-            if ($applied !== 0) {
-                repo_match_update_score($pdo, $matchId, 'A', $newA);
-                repo_match_insert_event($pdo, $matchId, 'A', $delta, $applied);
-            }
-            $scoreA = $newA; $scoreB = $curB;
-        } else {
-            $newB    = max(0, min($target, $curB + $delta));
-            $applied = $newB - $curB;
-            if ($applied !== 0) {
-                repo_match_update_score($pdo, $matchId, 'B', $newB);
-                repo_match_insert_event($pdo, $matchId, 'B', $delta, $applied);
-            }
-            $scoreA = $curA; $scoreB = $newB;
-        }
 
         $pdo->commit();
 
-        $reached = ($scoreA >= $target) || ($scoreB >= $target);
-        $leader  = $scoreA > $scoreB ? 'A' : ($scoreB > $scoreA ? 'B' : 'tie');
-
         return [
-            'ok'           => true,
-            'match_id'     => $matchId,
-            'score_a'      => $scoreA,
-            'score_b'      => $scoreB,
-            'target_score' => $target,
-            'status'       => $state['status'],
-            'reached'      => $reached,
-            'leader'       => $leader,
+            'ok'=>true,
+            'match_id'=>$matchId,
+            'score_a'=>$scoreA,
+            'score_b'=>$scoreB,
+            'target_score'=>$target,
+            'status'=>$state['status'],
+            'reached'=> md_reached($scoreA, $scoreB, $target),
+            'leader'=>  md_leader($scoreA, $scoreB),
         ];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -122,8 +115,8 @@ function svc_match_undo(PDO $pdo, int $matchId): array {
     try {
         $pdo->beginTransaction();
 
-        $state = repo_match_state($pdo, $matchId, true);
-        if (!$state) { $pdo->rollBack(); return ['ok'=>false,'http'=>404,'error'=>'not_found']; }
+        $state = ms_state_lock($pdo, $matchId);
+        if (!$state)                  { $pdo->rollBack(); return ['ok'=>false,'http'=>404,'error'=>'not_found']; }
         if (($state['status'] ?? '') === 'finished') {
             $pdo->rollBack(); return ['ok'=>false,'http'=>409,'error'=>'not_in_progress'];
         }
@@ -134,26 +127,22 @@ function svc_match_undo(PDO $pdo, int $matchId): array {
         $applied = (int)$evt['applied'];
         $team    = ($evt['team'] === 'A') ? 'A' : 'B';
 
-        if ($applied !== 0) {
-            repo_match_decrement_score($pdo, $matchId, $team, $applied);
-        }
+        if ($applied !== 0) repo_match_decrement_score($pdo, $matchId, $team, $applied);
         repo_match_delete_event($pdo, (int)$evt['id']);
 
         $state2 = repo_match_state($pdo, $matchId, false);
-
         $pdo->commit();
 
-        $reached = ((int)$state2['score_a'] >= (int)$state2['target_score'])
-                || ((int)$state2['score_b'] >= (int)$state2['target_score']);
+        $a = (int)$state2['score_a']; $b = (int)$state2['score_b']; $t = (int)$state2['target_score'];
 
         return [
-            'ok'           => true,
-            'match_id'     => $matchId,
-            'score_a'      => (int)$state2['score_a'],
-            'score_b'      => (int)$state2['score_b'],
-            'target_score' => (int)$state2['target_score'],
-            'status'       => $state2['status'],
-            'reached'      => $reached,
+            'ok'=>true,
+            'match_id'=>$matchId,
+            'score_a'=>$a,
+            'score_b'=>$b,
+            'target_score'=>$t,
+            'status'=>$state2['status'],
+            'reached'=> md_reached($a, $b, $t),
         ];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -161,55 +150,44 @@ function svc_match_undo(PDO $pdo, int $matchId): array {
     }
 }
 
-/** Finish (bestehend) belassen; Wrapper für Konsistenz */
-function svc_match_finish(PDO $pdo, int $matchId): array {
-    $res = finish_match($pdo, $matchId);
-    if (($res['ok'] ?? false) === true) return $res;
-    return $res + ['http' => (($res['error'] ?? '') === 'not_found' ? 404 : 500)];
-}
-
+/** Finish – unverändert (als Wrapper für Controller) */
 function finish_match(PDO $pdo, int $matchId): array {
-    // Match holen
     $stmt = $pdo->prepare("SELECT id, team_a_id, team_b_id, score_a, score_b, status FROM matches WHERE id=? LIMIT 1");
     $stmt->execute([$matchId]);
     $m = $stmt->fetch();
-
     if (!$m) return ['ok'=>false,'error'=>'not_found'];
     if (($m['status'] ?? '') === 'finished') return ['ok'=>true,'status'=>'finished'];
 
-    $teamA = (int)$m['team_a_id'];
-    $teamB = (int)$m['team_b_id'];
-    $scoreA= (int)$m['score_a'];
-    $scoreB= (int)$m['score_b'];
+    $teamA = (int)$m['team_a_id']; $teamB = (int)$m['team_b_id'];
+    $scoreA= (int)$m['score_a'];   $scoreB= (int)$m['score_b'];
 
     $pdo->beginTransaction();
     try {
-        // Stats aktualisieren
         $pdo->prepare("UPDATE teams SET games_played = games_played + 1 WHERE id IN (?, ?)")->execute([$teamA,$teamB]);
-        if ($scoreA > $scoreB) {
-            $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id=?")->execute([$teamA]);
-        } elseif ($scoreB > $scoreA) {
-            $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id=?")->execute([$teamB]);
-        }
+        if ($scoreA > $scoreB) { $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id=?")->execute([$teamA]); }
+        elseif ($scoreB > $scoreA) { $pdo->prepare("UPDATE teams SET wins = wins + 1 WHERE id=?")->execute([$teamB]); }
 
-        // Elo neu berechnen (Ratings sperren)
         $stmt = $pdo->prepare("SELECT id, rating FROM teams WHERE id IN (?, ?) FOR UPDATE");
         $stmt->execute([$teamA,$teamB]);
         $rows = $stmt->fetchAll();
-        $ratings = [];
-        foreach ($rows as $r) $ratings[(int)$r['id']] = (int)$r['rating'];
+        $ratings=[]; foreach($rows as $r) $ratings[(int)$r['id']] = (int)$r['rating'];
 
-        [$raNew, $rbNew] = elo_update($ratings[$teamA] ?? 1500, $ratings[$teamB] ?? 1500, $scoreA, $scoreB);
-        $pdo->prepare("UPDATE teams SET rating=? WHERE id=?")->execute([$raNew, $teamA]);
-        $pdo->prepare("UPDATE teams SET rating=? WHERE id=?")->execute([$rbNew, $teamB]);
+        [$raNew,$rbNew] = elo_update($ratings[$teamA]??1500, $ratings[$teamB]??1500, $scoreA, $scoreB);
+        $pdo->prepare("UPDATE teams SET rating=? WHERE id=?")->execute([$raNew,$teamA]);
+        $pdo->prepare("UPDATE teams SET rating=? WHERE id=?")->execute([$rbNew,$teamB]);
 
-        // Match auf finished setzen
         $pdo->prepare("UPDATE matches SET status='finished', finished_at=NOW() WHERE id=?")->execute([$matchId]);
-
         $pdo->commit();
+
         return ['ok'=>true,'status'=>'finished','score_a'=>$scoreA,'score_b'=>$scoreB];
     } catch (Throwable $e) {
         $pdo->rollBack();
         return ['ok'=>false,'error'=>'finish_failed','message'=>$e->getMessage()];
     }
+}
+
+function svc_match_finish(PDO $pdo, int $matchId): array {
+    $res = finish_match($pdo, $matchId);
+    if (($res['ok'] ?? false) === true) return $res;
+    return $res + ['http' => (($res['error'] ?? '') === 'not_found' ? 404 : 500)];
 }
