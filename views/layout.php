@@ -29,6 +29,10 @@ $active = function(string $p) use ($cur): string {
     <!-- Theme -->
     <link rel="stylesheet" href="/css/style.css">
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+
 </head>
 
 <body>
@@ -38,31 +42,52 @@ $active = function(string $p) use ($cur): string {
     <!-- Navbar -->
     <nav class="navbar navbar-expand-md glass-nav sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="/">
-                <!-- kleines Icon -->
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M7 4h10l1 4-6 3-6-3 1-4zm-2 16h14v-2l-5-3-2 1-2-1-5 3v2z" />
-                </svg>
-                Foosball <span class="brand-badge">Scoreboard</span>
+            <a class="navbar-brand d-flex align-items-center gap-2" href="/" title="Start">
+                <!-- kleines Fußball-Logo (inline SVG) -->
+                <!-- <div class="foosball-logo"></div> -->
+                <img class="logo-img" src="/assets/images/foosball-logo.png" alt="Foosball Logo">
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+
+
+
+            <button class="navbar-toggler burger-btn" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                aria-controls="mainNav" aria-expanded="false" aria-label="Menü umschalten">
+                <span class="burger" aria-hidden="true">
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                </span>
             </button>
+
+
+            <!-- <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                aria-controls="mainNav" aria-expanded="false" aria-label="Menü öffnen">
+                <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+            </button> -->
 
             <div class="collapse navbar-collapse" id="mainNav">
                 <ul class="navbar-nav me-auto mb-2 mb-md-0">
-                    <li class="nav-item"><a class="nav-link <?= $active('/leaderboard') ?>"
-                            href="/leaderboard">Leaderboard</a></li>
-                    <li class="nav-item"><a class="nav-link <?= $active('/matches') ?>" href="/matches">History</a></li>
-                    <li class="nav-item"><a class="nav-link <?= $active('/teams') ?>" href="/teams">Teams</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $active('/') ?>" href="/"
+                            aria-current="<?= $_SERVER['REQUEST_URI']==='/'?'page':'' ?>">Start</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $active('/leaderboard') ?>" href="/leaderboard">Rangliste</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $active('/matches') ?>" href="/matches">Spiele</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $active('/teams') ?>" href="/teams">Teams</a>
+                    </li>
                 </ul>
-                <div class="d-flex">
-                    <a class="btn btn-primary" href="/match/new">+ New Match</a>
-                </div>
+                <!-- <div class="d-flex">
+                    <a class="btn btn-primary" href="/match/new">+ Neues Match</a>
+                </div> -->
             </div>
         </div>
     </nav>
+
 
     <!-- Inhalt -->
     <main class="container my-3">

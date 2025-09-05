@@ -33,10 +33,51 @@ body{
   100% { transform: translate3d(0,-10px,0) scale(1.03); }
 }
 
+.title-name {
+      background:linear-gradient(90deg, var(--acc1,#33e1ed), var(--acc2,#ff5da2)); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+
+/* Container hat Größe + position:relative */
+.hero-cover{
+  position: relative;
+  min-height: 50vh;          /* oder: height: 420px; */
+  overflow: hidden;
+}
+
+/* Video füllt den Container (Cover) */
+.hero-cover__bg{
+  position: absolute;
+  inset: 0;                  /* top/right/bottom/left: 0 */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Inhalt über dem Video */
+.hero-cover__content{
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+
+/* [data-uk-cover]:where(img,video), [uk-cover]:where(img,video)
+ {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    object-fit: cover;
+    object-position: center;
+} */
+
 /* ---------- Typo & Links ---------- */
-h1,h2,h3{ letter-spacing:.2px; margin-bottom:.75rem }
+h1,h2,h3{letter-spacing:.2px; margin-bottom:.75rem; font-family: "Anton"; }
 a{ color: var(--acc1); text-decoration: none; }
-a:hover{ color:#7feaf2; text-decoration: underline; }
+a:hover{ color:#7feaf2; text-decoration: none; }
 .muted{ color: var(--muted)!important }
 
 /* ---------- Cards (Glassmorphism) ---------- */
@@ -50,6 +91,10 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
 }
 .card .card-body{ padding: 1rem 1rem; }
 
+.state-matches {
+  font-family: "Anton";
+}
+
 /* ---------- Tabellen ---------- */
 .table{ margin:0 }
 .table thead{ background: rgba(255,255,255,0.85); color:#0b0f14 }
@@ -58,8 +103,8 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
 /* ---------- Buttons ---------- */
 .btn{ border-radius: 10px }
 .btn-primary{
-  background: linear-gradient(135deg, var(--acc1), #79f2ff);
-  border:0; color:#07141a;
+  background: linear-gradient(135deg, var(--acc1), #010f10);
+  border:0; color:whitesmoke;
 }
 .btn-primary:hover{
   filter: brightness(1.05);
@@ -146,6 +191,7 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
       background: rgba(255,255,255,0.06);
       border-bottom: 1px solid rgba(255,255,255,0.12);
       backdrop-filter: blur(10px);
+      font-family:"Anton";
     }
     .navbar-brand {
       font-weight: 700;
@@ -159,11 +205,13 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
       font-size:.75rem;
     }
     .navbar-nav .nav-link {
+      --bs-nav-link-color: whitesmoke;
       position: relative;
     }
     .navbar-nav .nav-link.active,
     .navbar-nav .nav-link:hover {
       color: var(--acc1, #33e1ed);
+      text-decoration: none;
     }
     .navbar-nav .nav-link::after {
       content:''; position:absolute; left:.5rem; right:.5rem; bottom:.35rem;
@@ -178,6 +226,30 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
     .fx-bg { z-index: 0; } /* hinter Navbar */
     nav.navbar { z-index: 10; }
     main.container { position: relative; z-index: 1; }
+
+    .logo-img {
+      width: 4.5rem; 
+      height: auto;  
+}
+
+.link-titel-match-create {
+  font-family: "Anton";
+}
+
+
+.logo-name {
+color: whitesmoke;
+}
+
+    /* .foosball-logo{    
+      width: 1.7rem;
+      height: 1.7rem;
+      display: inline-block;
+      background: url("/assets/images/foosball.png");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+    } */
 
     /* Stat cards */
 .card-stat {
@@ -199,3 +271,93 @@ a:hover{ color:#7feaf2; text-decoration: underline; }
   border-color: rgba(255,255,255,0.18);
   box-shadow: 0 14px 38px rgba(0,0,0,0.35);
 }
+
+
+/* ===== Custom Burger – losgelöst vom Bootstrap-Look ===== */
+.navbar .navbar-toggler-icon{ display:none !important; } /* default-Icon aus */
+.navbar .navbar-toggler{ border:none; background:transparent; } /* Bootstrap-Rand weg */
+
+
+/* 1) Bootstrap-Focusring am Toggler komplett deaktivieren (per CSS-Variable) */
+.navbar .navbar-toggler{
+  --bs-navbar-toggler-focus-width: 0; /* killt den schwarzen/hellen Ring von BS */
+}
+
+/* 2) Deinen permanenten Shadow in allen Zuständen beibehalten */
+.burger-btn,
+.burger-btn:focus,
+.burger-btn:active,
+.navbar .navbar-toggler:focus,
+.navbar .navbar-toggler:active{
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25) !important; /* dein immer-Shadow */
+}
+
+/* 3) Optional: tastaturfreundlicher Fokus (Outline), Shadow bleibt */
+.burger-btn:focus-visible{
+  outline: 2px solid var(--acc1, #33e1ed);
+  outline-offset: 3px;
+}
+
+/* 4) Touch-Highlight entfernen (mobile) – optional */
+.burger-btn{ -webkit-tap-highlight-color: transparent; }
+
+/* .navbar-toggler:focus{
+    text-decoration: none;
+    outline: 0;
+    box-shadow: none;
+} */
+
+/* Button-Container (Glas + Soft Glow) */
+.burger-btn{
+  --bar-w: 22px;            /* Linienbreite */
+  --bar-h: 2px;             /* Liniendicke */
+  --bar-gap: 6px;           /* Abstand zwischen Linien */
+  --bar-radius: 2px;
+  --bar-bg: linear-gradient(90deg, var(--acc1,#33e1ed), var(--acc2,#ff5da2));
+
+  width: 44px; height: 44px; padding:0;
+  display:grid; place-items:center;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  transition: box-shadow .2s ease, filter .2s ease, border-color .2s ease;
+}
+.burger-btn:hover{ filter: brightness(1.06); border-color: rgba(255,255,255,0.18); }
+.burger-btn:focus-visible{ outline:2px solid var(--acc1,#33e1ed); outline-offset:2px; }
+
+/* Drei Linien */
+.burger{ position:relative; width:var(--bar-w); height:calc(var(--bar-h)*3 + var(--bar-gap)*2); }
+.burger .bar{
+  position:absolute; left:0; right:0;
+  height:var(--bar-h); border-radius:var(--bar-radius);
+  background: var(--bar-bg);
+  transition: transform .26s ease, opacity .18s ease;
+  will-change: transform, opacity;
+}
+.burger .bar:nth-child(1){ top:0; }
+.burger .bar:nth-child(2){ top:calc(var(--bar-h) + var(--bar-gap)); }
+.burger .bar:nth-child(3){ bottom:0; }
+
+/* Animationszustand: zu „X“, gesteuert über aria-expanded */
+.burger-btn[aria-expanded="true"] .bar:nth-child(1){
+  transform: translateY(calc(var(--bar-gap) + var(--bar-h))) rotate(45deg);
+}
+.burger-btn[aria-expanded="true"] .bar:nth-child(2){
+  opacity:0; transform: scaleX(0.5);
+}
+.burger-btn[aria-expanded="true"] .bar:nth-child(3){
+  transform: translateY(calc(-1 * (var(--bar-gap) + var(--bar-h)))) rotate(-45deg);
+}
+
+
+
+
+/* Motion-Respect */
+@media (prefers-reduced-motion: reduce){
+  .burger .bar{ transition:none; }
+  .burger-btn{ transition:none; }
+}
+
+
+
